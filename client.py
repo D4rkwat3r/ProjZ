@@ -1,8 +1,7 @@
 from .internal.api.z_http_api import ZHttpAPI
 from .internal.api.z_api_request import ZApiRequest
 from .internal.api.z_api_response import ZApiResponse
-from .internal.exceptions.api_exception import APIException
-from .internal.exceptions.other.circle_client_initializing_error import CircleClientInitializingError
+from .internal.models.chat_list import ChatList
 from .internal.utils.objectification import *
 from .internal.exceptions.other.unauthorized import Unauthorized
 from .internal.websockets.z_websocket_listener import ZWebsocketListener
@@ -53,6 +52,31 @@ class ZClient(ZHttpAPI):
             url += "&pageToken=" + page_token
         response = await self._get(url)
         return circle_list(response.json)
+
+    async def get_my_circles(self, size: int = 30, page_token: Optional[str] = None) -> CircleList:
+        url = f"/v1/circles?type=joined&categoryId=0&size={str(size)}"
+        if page_token:
+            url += "&pageToken=" + page_token
+        response = await self._get(url)
+        return circle_list(response.json)
+
+    async def get_circle_chats(self,
+                               circle_id: Optional[int] = None,
+                               social_id: Optional[str] = None,
+                               circle_link: Optional[str] = None,
+                               size: int = 30,
+                               page_token: Optional[str] = None) -> ChatList:
+        if social_id:
+            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
+        elif circle_link:
+            circle_id = (await self.link_info(circle_link)).object_id
+        if not circle_id:
+            raise ValueError("This function cannot be called without arguments")
+        url = f"/v1/chat/threads?type=circle&objectId={str(circle_id)}&size={size}"
+        if page_token:
+            url += "&pageToken=" + page_token
+        response = await self._get(url)
+        return chat_list(response.json)
 
     async def circle_info(self, circle_id: int) -> Circle:
         response = await self._get(f"/v1/circles/{str(circle_id)}")

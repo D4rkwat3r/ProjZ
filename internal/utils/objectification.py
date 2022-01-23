@@ -11,6 +11,7 @@ from ..models.user_profile_extensions import UserProfileExtensions
 from ..models.message import Message
 from ..models.user_profile_list import UserProfileList
 from ..models.chat import Chat
+from ..models.chat_list import ChatList
 
 none_type = type(None)
 
@@ -158,7 +159,7 @@ def circle(source: dict) -> Circle:
     )
 
 
-def circle_list(source: dict) -> CircleList:
+def circle_list(source: dict) -> CircleList[Circle]:
     circles = CircleList(pagination(source["pagination"]))
     for c in source["list"]:
         circles.append(
@@ -200,11 +201,18 @@ def user_list_default(source: dict, internal: bool = False) -> list[UserProfile]
     return users
 
 
-def user_list(source: dict) -> UserProfileList:
+def user_list(source: dict) -> UserProfileList[UserProfile]:
     users = UserProfileList(pagination(source["pagination"]))
     for one_user in source["list"]:
         users.append(user_profile(one_user))
     return users
+
+
+def chat_list(source: dict) -> ChatList[Chat]:
+    chats = ChatList(pagination(source["pagination"]))
+    for one_chat in source["list"]:
+        chats.append(chat(one_chat))
+    return chats
 
 
 def chat(source: dict) -> Chat:
