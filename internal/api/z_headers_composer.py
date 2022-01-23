@@ -53,11 +53,11 @@ class ZHeadersComposer:
             headers["Content-Type"] = content_type
         final_body = None
         if isinstance(body, str):
-            final_body = body.encode("utf-8")
+            final_body = body.encode("utf-8").hex()
         elif isinstance(body, bytes):
-            final_body = body
+            final_body = body.hex()
         elif isinstance(body, dict):
-            final_body = dumps(body)
+            final_body = dumps(body).encode("utf-8").hex()
         headers["HJTRFS"] = self._sign_request(
             path,
             headers,
@@ -65,13 +65,15 @@ class ZHeadersComposer:
         )
         return headers
 
-    def _sign_request(self, path: str, headers: dict, body: Optional[bytes] = None) -> str:
+    def _sign_request(self, path: str, headers: dict, body: Optional[str] = None) -> str:
+        signing_request_data = {
+            "path": path,
+            "headers": headers
+        }
+        if body:
+            signing_request_data["binaryHexBody"] = body
         return Client().post(
-            "http://deepthreads.ru:24358/z/reqsig", data={
-                "path": path,
-                "headers": headers,
-                "body": body.decode("utf-8")
-            }
+            "http://deepthreads.ru:24358/z/reqsig", json=signing_request_data
         ).json()["signature"]
 
     def _device_id(self):

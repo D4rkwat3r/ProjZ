@@ -5,12 +5,16 @@ from .internal.exceptions.api_exception import APIException
 from .internal.exceptions.other.circle_client_initializing_error import CircleClientInitializingError
 from .internal.utils.objectification import *
 from .internal.exceptions.other.unauthorized import Unauthorized
-from .internal.websockets.z_websocket_connection import ZWebsocketConnection
-from .circle_client import CircleClient
+from .internal.websockets.z_websocket_listener import ZWebsocketListener
 from .internal.api.z_media_api import ZMediaAPI
 from typing import Optional
 from typing import Union
 from aiofiles import open as async_open
+from asyncio import run
+from asyncio import wait
+from asyncio import current_task
+from asyncio import get_running_loop
+from asyncio import create_task
 from time import time
 from types import FunctionType
 
@@ -34,19 +38,6 @@ class ZClient(ZHttpAPI):
         else:
             self._headers_template["rawDeviceId"] = self.device_id()
 
-    async def create_circle_client(self, circle_id: int) -> CircleClient:
-        try:
-            return CircleClient(
-                self,
-                self._session,
-                await self.circle_info(circle_id),
-                self._websocket
-            )
-        except APIException as e:
-            raise CircleClientInitializingError(
-                f"An unexpected error occurred when creating a circle client instance. Error code: {e.code}"
-            )
-
     async def login(self, email: str, password: str) -> Account:
         data = {
             "authType": 1,
@@ -57,7 +48,7 @@ class ZClient(ZHttpAPI):
         self._session = account(response.json)
         self._set_authorization_cookie(self._session.sId)
         if self._is_websocket_required:
-            self._websocket = ZWebsocketConnection.create(self)
+            self._websocket = ZWebsocketListener.create(self)
         return self._session
 
     async def get_recommended_circles(self, size: int = 30, page_token: Optional[str] = None) -> CircleList:
@@ -90,6 +81,20 @@ class ZClient(ZHttpAPI):
         if not circle_id:
             raise ValueError("This function cannot be called without arguments")
         response = await self._post(f"/v1/circles/{str(circle_id)}/members")
+        return circle(response.json)
+
+    async def leave_circle(
+            self,
+            circle_id: Optional[int] = None,
+            social_id: Optional[str] = None,
+            circle_link: Optional[str] = None) -> Circle:
+        if social_id:
+            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
+        elif circle_link:
+            circle_id = (await self.link_info(circle_link)).object_id
+        if not circle_id:
+            raise ValueError("This function cannot be called without arguments")
+        response = await self._delete(f"/v1/circles/{str(circle_id)}/members")
         return circle(response.json)
 
     async def join_chat(
@@ -133,9 +138,9 @@ class ZClient(ZHttpAPI):
             }
         }
         if self._websocket:
-            return await self._websocket.send(data)
+            return await self._websocket.send_json(data)
         else:
-            return await ZWebsocketConnection.send_and_disconnect(self, data)
+            return await ZWebsocketListener.send_and_disconnect(self, data)
 
     async def request_security_validation(self, email: str) -> ZApiResponse:
         data = {
@@ -185,7 +190,7 @@ class ZClient(ZHttpAPI):
             self._session = new
             self._set_authorization_cookie(self._session.sId)
             if self._is_websocket_required:
-                self._websocket = ZWebsocketConnection.create(self)
+                self._websocket = ZWebsocketListener.create(self)
         return new
 
     async def get_circle_users(self,
@@ -307,6 +312,6 @@ class ZClient(ZHttpAPI):
     def on_chat_message(self, handler: FunctionType):
         if not self._is_websocket_required:
             if self._session:
-                self._websocket = ZWebsocketConnection.create(self)
+                self._websocket = ZWebsocketListener.create(self)
             self._is_websocket_required = True
-        ZWebsocketConnection.add(handler, "on_message")
+        ZWebsocketListener.add(handler, "on_message")
