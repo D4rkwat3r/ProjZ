@@ -1,9 +1,9 @@
 from .callback_type import CallbackType
 from ..api.z_headers_composer import ZHeadersComposer
 from ..utils.objectification import *
-from websocket import WebSocket
-from threading import Thread
-from asyncio import run
+from .base_websockets_listener import BaseWebsocketListener
+from asyncio import sleep
+from asyncio import ensure_future
 from types import FunctionType
 from ujson import loads
 from ujson import dumps
@@ -16,49 +16,39 @@ types = {
 }
 
 
-class ZWebsocketListener(Thread, WebSocket):
+class ZWebsocketListener:
     callbacks: list[CallbackType] = []
 
     def __init__(self, handshake_headers_composer: ZHeadersComposer) -> None:
-        Thread.__init__(self=self, target=self.launch)
-        WebSocket.__init__(self=self)
         self.composer = handshake_headers_composer
-        self.uri = "wss://ws.projz.com"
+        self.ws = BaseWebsocketListener.Builder() \
+            .set_uri("wss://ws.projz.com/v1/chat/ws") \
+            .set_handshake_headers(self.composer.compose("/v1/chat/ws")) \
+            .set_on_message(self.forward) \
+            .set_on_error(self.restart) \
+            .build()
+        self.ws.start()
 
-    def forward(self, notification_type: int, json: dict) -> None:
+    def restart(self):
+        self.ws.start()
+
+    async def forward(self, entity: str) -> None:
+        json = loads(entity)
+        notification_type = json["t"]
         for callback in self.__class__.callbacks:
             if callback.notification_type == types[notification_type]:
                 if types[notification_type] == "on_message":
                     if not json.get("smallNote") and not json.get("userList"):
-                        run(callback.handler(message(json["msg"])))
-
-    def launch(self) -> None:
-        self.connect(self.uri + "/v1/chat/ws", header=self.composer.compose("/v1/chat/ws"))
-        while True:
-            try:
-                received = self.recv()
-            except Exception as e:
-                print(e)
-                break
-            if len(received) == 0:
-                self.send("")
-                continue
-            json = loads(received)
-            self.forward(json["t"], json)
+                        ensure_future(callback.handler(message(json["msg"])))
+                        await sleep(3)
 
     async def send_json(self, entity: dict, disconnecting: bool = False) -> None:
         try:
-            self.send(dumps(entity))
+            self.ws.send(dumps(entity))
             if disconnecting:
-                self.close()
+                self.ws.close()
         except (RuntimeError, AssertionError):
-            self.send(entity)
-
-    @classmethod
-    def create(cls, composer: ZHeadersComposer):
-        instance = cls(composer)
-        instance.start()
-        return instance
+            self.ws.send(entity)
 
     @classmethod
     def add(cls, handler: FunctionType, notification_type: str, **kwargs) -> None:
@@ -66,5 +56,5 @@ class ZWebsocketListener(Thread, WebSocket):
 
     @classmethod
     async def send_and_disconnect(cls, composer: ZHeadersComposer, entity: dict):
-        instance = cls.create(composer)
+        instance = cls(composer)
         await instance.send_json(entity, True)

@@ -3,7 +3,7 @@ from .internal.api.z_api_request import ZApiRequest
 from .internal.models.message import Message
 from httpx import Client
 
-__version__ = "1.7.2"
+__version__ = "1.7.5"
 
 __latest_version__ = Client().get("https://pypi.org/pypi/ProjZ.py/json").json()["info"]["version"]
 
