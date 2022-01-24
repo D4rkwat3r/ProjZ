@@ -6,6 +6,8 @@ from types import FunctionType
 from asyncio import AbstractEventLoop
 from asyncio import run
 from asyncio import get_event_loop
+from threading import Timer
+from ssl import SSLZeroReturnError
 
 
 class BaseWebsocketListener(Thread, WebSocket):
@@ -14,9 +16,10 @@ class BaseWebsocketListener(Thread, WebSocket):
         WebSocket.__init__(self=self)
         self._uri = None
         self._handshake_headers = {}
+        self._ping_message = None
+        self._ping_interval = None
         self._on_message = lambda message: ...
         self._on_disconnect = lambda: ...
-        self._on_error = lambda error: ...
         self._event_loop = AbstractEventLoop()
 
     async def launch(self) -> None:
@@ -24,17 +27,21 @@ class BaseWebsocketListener(Thread, WebSocket):
         self.connect(self._uri, header=self._handshake_headers)
         await self.listen()
 
+    def ping_cycle(self):
+        try:
+            self.send(self._ping_message)
+        except SSLZeroReturnError:
+            self.ping_cycle()
+        Timer(float(self._ping_interval), self.ping_cycle).start()
+
     async def listen(self) -> None:
+        self.ping_cycle()
         try:
             message = self.recv()
             await self._on_message(message)
             await self.listen()
         except WebSocketConnectionClosedException:
             self._on_disconnect()
-            return
-        except Exception as e:
-            self._on_error(e)
-            return
 
     class Builder:
         def __init__(self) -> None:
@@ -56,12 +63,16 @@ class BaseWebsocketListener(Thread, WebSocket):
             self._instance._on_disconnect = handler
             return self
 
-        def set_on_error(self, handler: FunctionType):
-            self._instance._on_error = handler
-            return self
-
         def set_event_loop(self, loop: AbstractEventLoop):
             self._instance._event_loop = loop
+            return self
+
+        def set_ping_message(self, ping_message: str):
+            self._instance._ping_message = ping_message
+            return self
+
+        def set_ping_interval(self, ping_interval: int):
+            self._instance._ping_interval = ping_interval
             return self
 
         def build(self):

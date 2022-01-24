@@ -1,15 +1,14 @@
 from .internal.api.z_http_api import ZHttpAPI
 from .internal.api.z_api_request import ZApiRequest
 from .internal.api.z_api_response import ZApiResponse
-from .internal.models.chat_list import ChatList
 from .internal.utils.objectification import *
 from .internal.exceptions.other.unauthorized import Unauthorized
 from .internal.websockets.z_websocket_listener import ZWebsocketListener
 from .internal.api.z_media_api import ZMediaAPI
+
 from typing import Optional
 from typing import Union
 from aiofiles import open as async_open
-from asyncio import get_running_loop
 from time import time
 from types import FunctionType
 
@@ -66,12 +65,7 @@ class ZClient(ZHttpAPI):
                                circle_link: Optional[str] = None,
                                size: int = 30,
                                page_token: Optional[str] = None) -> ChatList:
-        if social_id:
-            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
-        elif circle_link:
-            circle_id = (await self.link_info(circle_link)).object_id
-        if not circle_id:
-            raise ValueError("This function cannot be called without arguments")
+        circle_id = await self._circle_id(circle_id, social_id, circle_link)
         url = f"/v1/chat/threads?type=circle&objectId={str(circle_id)}&size={size}"
         if page_token:
             url += "&pageToken=" + page_token
@@ -94,12 +88,7 @@ class ZClient(ZHttpAPI):
             circle_id: Optional[int] = None,
             social_id: Optional[str] = None,
             circle_link: Optional[str] = None) -> Circle:
-        if social_id:
-            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
-        elif circle_link:
-            circle_id = (await self.link_info(circle_link)).object_id
-        if not circle_id:
-            raise ValueError("This function cannot be called without arguments")
+        circle_id = await self._circle_id(circle_id, social_id, circle_link)
         response = await self._post(f"/v1/circles/{str(circle_id)}/members")
         return circle(response.json)
 
@@ -108,12 +97,7 @@ class ZClient(ZHttpAPI):
             circle_id: Optional[int] = None,
             social_id: Optional[str] = None,
             circle_link: Optional[str] = None) -> Circle:
-        if social_id:
-            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
-        elif circle_link:
-            circle_id = (await self.link_info(circle_link)).object_id
-        if not circle_id:
-            raise ValueError("This function cannot be called without arguments")
+        circle_id = await self._circle_id(circle_id, social_id, circle_link)
         response = await self._delete(f"/v1/circles/{str(circle_id)}/members")
         return circle(response.json)
 
@@ -128,7 +112,11 @@ class ZClient(ZHttpAPI):
             thread_id: int) -> ZApiResponse:
         return await self._delete(f"/v1/chat/threads/{thread_id}/members")
 
-    async def send_message(self, thread_id: int, content: str, message_type: int = 1):
+    async def send_message(self,
+                           thread_id: int,
+                           content: str,
+                           message_type: int = 1,
+                           reply_message_id: Optional[int] = None) -> int:
         if not self._session:
             raise Unauthorized("You must be logged in to send this action")
         data = {
@@ -139,28 +127,20 @@ class ZClient(ZHttpAPI):
                 "status": 1,
                 "threadId": thread_id,
                 "createdTime": int(time() * 1000),
-                "uid": self.get_current_session().uid,
+                "uid": self._session.uid,
                 "seqId": int(time() * 1000),
                 "content": content,
-                "messageId": 0,
-                "asSummary": False,
-                "rolePlayMode": 0,
-                "onlineMemberCount": 0,
-                "roleList": [],
-                "threadActivityId": 0,
-                "threadActivityType": 0,
-                "memberList": [],
-                "applyCount": 0,
-                "userList": [],
-                "extensions": {},
-                "parentId": 0,
-                "containerStatus": 0
+                "messageId": message_type,
+                "extensions": {
+                    "replyMessageId": reply_message_id
+                }
             }
         }
         if self._websocket:
-            return await self._websocket.send_json(data)
+            result = await self._websocket.send_json(data, data["msg"]["seqId"])
         else:
-            return await ZWebsocketListener.send_and_disconnect(self, data, get_running_loop())
+            result = await ZWebsocketListener.send_and_disconnect(self, data, data["msg"]["seqId"])
+        return result["messageId"]
 
     async def request_security_validation(self, email: str) -> ZApiResponse:
         data = {
@@ -170,6 +150,19 @@ class ZClient(ZHttpAPI):
             "countryCode": "en"
         }
         return await self._post("/v1/auth/request-security-validation", data)
+
+    async def get_chat_messages(self, thread_id: int, size: int = 30, page_token: Optional[str] = None):
+        url = f"/v1/chat/threads/{str(thread_id)}/messages"
+        url += "?size=" + str(size)
+        if page_token:
+            url += "&pageToken=" + page_token
+        response = await self._get(url)
+        return message_list(response.json)
+
+    async def get_my_chats(self, start: int = 0, size: int = 30, chats_type: str = "all"):
+        url = f"/v1/chat/joined-threads?start={str(start)}&size={str(size)}&type={chats_type}"
+        response = await self._get(url)
+        return old_chat_list(response.json)
 
     async def check_security_validation(self, email: str, code: str) -> bool:
         data = {
@@ -222,12 +215,7 @@ class ZClient(ZHttpAPI):
                                search_query_word: Optional[str] = None,
                                exclude_manager: bool = False,
                                page_token: Optional[str] = None) -> UserProfileList:
-        if social_id:
-            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
-        elif circle_link:
-            circle_id = (await self.link_info(circle_link)).object_id
-        if not circle_id:
-            raise ValueError("This function cannot be called without arguments")
+        circle_id = await self._circle_id(circle_id, social_id, circle_link)
         url = f"/v1/circles/{str(circle_id)}/members"
         url += "?type=" + search_type
         url += "&size=" + str(size)
@@ -243,12 +231,7 @@ class ZClient(ZHttpAPI):
                                 circle_id: Optional[int] = None,
                                 social_id: Optional[str] = None,
                                 circle_link: Optional[str] = None) -> UserProfileList:
-        if social_id:
-            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
-        elif circle_link:
-            circle_id = (await self.link_info(circle_link)).object_id
-        if not circle_id:
-            raise ValueError("This function cannot be called without arguments")
+        circle_id = await self._circle_id(circle_id, social_id, circle_link)
         response = await self._get(f"/v1/circles/{str(circle_id)}/management-team")
         return user_list(response.json)
 
@@ -262,12 +245,7 @@ class ZClient(ZHttpAPI):
                                       circle_link: Optional[str] = None,
                                       size: int = 30,
                                       page_token: Optional[str] = None) -> UserProfileList:
-        if social_id:
-            circle_id = (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
-        elif circle_link:
-            circle_id = (await self.link_info(circle_link)).object_id
-        if not circle_id:
-            raise ValueError("This function cannot be called without arguments")
+        circle_id = await self._circle_id(circle_id, social_id, circle_link)
         url = f"/v1/circles/{str(circle_id)}/active-members"
         url += "?size=" + str(size)
         if page_token:
@@ -275,48 +253,64 @@ class ZClient(ZHttpAPI):
         response = await self._get(url)
         return user_list(response.json)
 
+    async def visit_profile(self, user_id: int) -> ZApiResponse:
+        return await self._post(f"/v1/user/profile/{str(user_id)}/visit")
+
     async def start_chat(self,
                          invite_user_ids: Union[int, list],
                          message_content: str,
                          message_type: int = 1,
                          background_file_name: Optional[str] = None) -> Chat:
-        background = (await self.get_default_chat_background()).raw_json if not background_file_name else (await self.upload(background_file_name, 1)).raw_json
+        background = (await self.get_default_chat_background()).raw_json if not background_file_name else (
+            await self.upload(background_file_name, 1)).raw_json
         data = {
-              "type": message_type,
-              "status": 1,
-              "background": background,
-              "inviteMessageContent": message_content,
-              "invitedUids": invite_user_ids if isinstance(invite_user_ids, list) else [invite_user_ids]
+            "type": message_type,
+            "status": 1,
+            "background": background,
+            "inviteMessageContent": message_content,
+            "invitedUids": invite_user_ids if isinstance(invite_user_ids, list) else [invite_user_ids]
         }
         response = await self._post("/v1/chat/threads", data)
         return chat(response.json)
+
+    async def _circle_id(self,
+                         circle_id: Optional[int] = None,
+                         social_id: Optional[str] = None,
+                         circle_link: Optional[str] = None
+                         ) -> int:
+        if social_id:
+            return (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
+        elif circle_link:
+            return (await self.link_info(circle_link)).object_id
+        if not circle_id:
+            raise ValueError("This function cannot be called without arguments")
 
     async def get_default_chat_background(self) -> Media:
         return media({
             "mediaId": 1448528961146159000,
             "baseUrl": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s0x0.png",
             "resourceList": [
-              {
-                "width": 1125,
-                "height": 2436,
-                "thumbnail": False,
-                "duration": 0,
-                "url": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s1125x2436.png"
-              },
-              {
-                "width": 695,
-                "height": 1508,
-                "thumbnail": False,
-                "duration": 0,
-                "url": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s472x1024.png"
-              },
-              {
-                "width": 347,
-                "height": 754,
-                "thumbnail": False,
-                "duration": 0,
-                "url": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s236x512.png"
-              }
+                {
+                    "width": 1125,
+                    "height": 2436,
+                    "thumbnail": False,
+                    "duration": 0,
+                    "url": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s1125x2436.png"
+                },
+                {
+                    "width": 695,
+                    "height": 1508,
+                    "thumbnail": False,
+                    "duration": 0,
+                    "url": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s472x1024.png"
+                },
+                {
+                    "width": 347,
+                    "height": 754,
+                    "thumbnail": False,
+                    "duration": 0,
+                    "url": "http://sys.projz.com/4198/1448528961146159104-v1-r1125x2436-s236x512.png"
+                }
             ]
         })
 

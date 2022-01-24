@@ -12,6 +12,8 @@ from ..models.message import Message
 from ..models.user_profile_list import UserProfileList
 from ..models.chat import Chat
 from ..models.chat_list import ChatList
+from ..models.message_list import MessageList
+from ..models.old_chat_list import OldChatList
 
 none_type = type(None)
 
@@ -206,6 +208,20 @@ def user_list(source: dict) -> UserProfileList[UserProfile]:
     for one_user in source["list"]:
         users.append(user_profile(one_user))
     return users
+
+
+def old_chat_list(source: dict) -> OldChatList[Chat]:
+    chats = OldChatList(source["isEnd"])
+    for one_chat in source["list"]:
+        chats.append(chat(one_chat))
+    return chats
+
+
+def message_list(source: dict) -> MessageList[MessageList]:
+    messages = MessageList(pagination(source["pagination"]))
+    for one_message in source["list"]:
+        messages.append(message(one_message))
+    return messages
 
 
 def chat_list(source: dict) -> ChatList[Chat]:
