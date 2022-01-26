@@ -7,13 +7,16 @@ from asyncio import AbstractEventLoop
 from asyncio import run
 from asyncio import get_event_loop
 from threading import Timer
+from ssl import CERT_NONE
 from ssl import SSLZeroReturnError
+from ssl import SSLEOFError
+from ssl import SSLError
 
 
 class BaseWebsocketListener(Thread, WebSocket):
     def __init__(self) -> None:
         Thread.__init__(self=self, target=run, args=(self.launch(),))
-        WebSocket.__init__(self=self)
+        WebSocket.__init__(self=self, sslopt={"check_hostname": False, "cert_reqs": CERT_NONE})
         self._uri = None
         self._handshake_headers = {}
         self._ping_message = None
@@ -27,11 +30,16 @@ class BaseWebsocketListener(Thread, WebSocket):
         self.connect(self._uri, header=self._handshake_headers)
         await self.listen()
 
+    def send(self, *args, **kwargs):
+        while True:
+            try:
+                super().send(*args, **kwargs)
+                break
+            except (SSLZeroReturnError, SSLEOFError, SSLError):
+                continue
+
     def ping_cycle(self):
-        try:
-            self.send(self._ping_message)
-        except SSLZeroReturnError:
-            self.ping_cycle()
+        self.send(self._ping_message)
         Timer(float(self._ping_interval), self.ping_cycle).start()
 
     async def listen(self) -> None:

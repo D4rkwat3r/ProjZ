@@ -5,7 +5,7 @@ from .internal.utils.objectification import *
 from .internal.exceptions.other.unauthorized import Unauthorized
 from .internal.websockets.z_websocket_listener import ZWebsocketListener
 from .internal.api.z_media_api import ZMediaAPI
-
+from .internal.exceptions.other.message_sending_error import MessageSendingError
 from typing import Optional
 from typing import Union
 from aiofiles import open as async_open
@@ -116,9 +116,10 @@ class ZClient(ZHttpAPI):
                            thread_id: int,
                            content: str,
                            message_type: int = 1,
-                           reply_message_id: Optional[int] = None) -> int:
+                           reply_message_id: Optional[int] = None) -> dict:
         if not self._session:
             raise Unauthorized("You must be logged in to send this action")
+        seq_id = int(time() * 1000)
         data = {
             "t": 1,
             "threadId": thread_id,
@@ -128,7 +129,7 @@ class ZClient(ZHttpAPI):
                 "threadId": thread_id,
                 "createdTime": int(time() * 1000),
                 "uid": self._session.uid,
-                "seqId": int(time() * 1000),
+                "seqId": seq_id,
                 "content": content,
                 "messageId": message_type,
                 "extensions": {
@@ -137,10 +138,10 @@ class ZClient(ZHttpAPI):
             }
         }
         if self._websocket:
-            result = await self._websocket.send_json(data, data["msg"]["seqId"])
+            result = await self._websocket.send_json(data, MessageSendingError, seq_id)
         else:
-            result = await ZWebsocketListener.send_and_disconnect(self, data, data["msg"]["seqId"])
-        return result["messageId"]
+            result = await ZWebsocketListener.send_and_disconnect(self, data, MessageSendingError, seq_id)
+        return result
 
     async def request_security_validation(self, email: str) -> ZApiResponse:
         data = {
@@ -187,15 +188,22 @@ class ZClient(ZHttpAPI):
         await self.check_security_validation(email, security_code)
         data = {
             "authType": 1,
+            "purpose": 1,
             "email": email,
             "password": password,
+            "phoneNumber": "+7 ",
             "securityCode": security_code,
+            "invitationCode": "",
+            "secret": "",
             "nickname": nickname,
             "tagLine": tag_line,
+            "icon": (await self.upload(icon_file_name, 1)).raw_json,
+            "nameCardBackground": (await self.upload(card_background_file_name, 11)).raw_json,
             "gender": gender,
             "birthday": birthday,
-            "icon": (await self.upload(icon_file_name, 1)).raw_json,
-            "nameCardBackground": (await self.upload(card_background_file_name, 11)).raw_json
+            "requestToBeReactivated": False,
+            "countryCode": "en",
+            "suggestedCountryCode": "EN"
         }
         response = await self._post("/v1/auth/register", data)
         new = account(response.json)
@@ -273,11 +281,20 @@ class ZClient(ZHttpAPI):
         response = await self._post("/v1/chat/threads", data)
         return chat(response.json)
 
+    async def verify_captcha(self, captcha_value: str) -> bool:
+        data = {
+            "captchaValue": captcha_value
+        }
+        response = await self._web_post("/api/f/v1/risk/verify-captcha", data)
+        return response["success"]
+
     async def _circle_id(self,
                          circle_id: Optional[int] = None,
                          social_id: Optional[str] = None,
                          circle_link: Optional[str] = None
                          ) -> int:
+        if circle_id:
+            return circle_id
         if social_id:
             return (await self.link_info("https://www.projz.com/s/c/" + social_id)).object_id
         elif circle_link:

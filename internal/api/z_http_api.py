@@ -1,9 +1,10 @@
 from .z_headers_composer import ZHeadersComposer
 from .z_api_request import ZApiRequest
 from .z_api_response import ZApiResponse
-from ujson import dumps
+from httpx import AsyncClient
 from typing import Optional
-from typing import BinaryIO
+from ujson import dumps
+
 
 
 class ZHttpAPI(ZHeadersComposer):
@@ -24,3 +25,13 @@ class ZHttpAPI(ZHeadersComposer):
 
     async def _send_custom(self, request: ZApiRequest) -> ZApiResponse:
         return await request.send()
+
+    async def _web_get(self, endpoint: str) -> int:
+        async with AsyncClient(base_url="https://www.projz.com") as client:
+            response = await client.get(endpoint)
+        return response.status_code
+
+    async def _web_post(self, endpoint: str, data: Optional[dict] = None) -> dict:
+        async with AsyncClient(base_url="https://www.projz.com") as client:
+            response = await client.post(endpoint, data=dumps(data))
+        return response.json()

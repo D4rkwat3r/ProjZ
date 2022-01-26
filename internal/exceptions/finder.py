@@ -6,6 +6,7 @@ from .objects.incorrect_verification_code import IncorrectVerificationCode
 from .objects.bad_device_id import BadDeviceId
 from .objects.unsupported_service import UnsupportedService
 from .objects.you_cant_register_now import YouCantRegisterNow
+from .objects.captcha_caught import CaptchaCaught
 
 codes = {
     2009: EmailNotRegistered,
@@ -14,13 +15,21 @@ codes = {
     2005: IncorrectVerificationCode,
     2007: BadDeviceId,
     1006: UnsupportedService,
-    2063: YouCantRegisterNow
+    2063: YouCantRegisterNow,
+    1008: CaptchaCaught
 }
 
 
 def get_exception(response: dict) -> Exception:
     if response["apiCode"] in codes:
-        return codes[response["apiCode"]](
+        exception = codes[response["apiCode"]]
+        if exception is CaptchaCaught:
+            return exception(
+                code=response["apiCode"],
+                message=response["apiMsg"],
+                url=response["redirectUrl"]
+            )
+        return exception(
             code=response["apiCode"],
             message=response["apiMsg"]
         )
