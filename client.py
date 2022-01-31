@@ -45,6 +45,18 @@ class ZClient(ZHttpAPI):
             self._websocket = ZWebsocketListener(self)
         return self._session
 
+    async def change_password(self, old_password: str, new_password: str) -> Account:
+        data = {
+            "newPassword": new_password,
+            "oldPassword": old_password
+        }
+        response = await self._post("/v1/auth/change-password")
+        self._session = account(response.json)
+        self._set_authorization_cookie(self._session.sId)
+        if self._is_websocket_required:
+            self._websocket = ZWebsocketListener(self)
+        return self._session
+
     async def get_recommended_circles(self, size: int = 30, page_token: Optional[str] = None) -> CircleList:
         url = "/v1/circles?type=recommend&size=" + str(size)
         if page_token:
