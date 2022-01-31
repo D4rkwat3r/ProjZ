@@ -50,7 +50,7 @@ class ZClient(ZHttpAPI):
             "newPassword": new_password,
             "oldPassword": old_password
         }
-        response = await self._post("/v1/auth/change-password")
+        response = await self._post("/v1/auth/change-password", data)
         self._session = account(response.json)
         self._set_authorization_cookie(self._session.sId)
         if self._is_websocket_required:
