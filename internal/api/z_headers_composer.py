@@ -1,9 +1,12 @@
+from hmac import new
+from hashlib import sha256
+from hashlib import sha1
+from base64 import b64encode
 from typing import Union
 from typing import Optional
 from uuid import uuid4
 from time import time
 from ujson import dumps
-from httpx import Client
 
 
 class ZHeadersComposer:
@@ -12,12 +15,12 @@ class ZHeadersComposer:
         self._headers_template = {
             "rawDeviceId": self._device_id(),
             "appType": "MainApp",
-            "appVersion": "1.23.1",
+            "appVersion": "1.23.4",
             "osType": "2",
             "deviceType": "1",
             "Accept-Language": "en-US",
             "countryCode": "EN",
-            "User-Agent": "com.projz.z.android/1.23.1-12478 (Linux; U; Android 7.1.2; SM-N975F; Build/samsung-user 7.1.22)",
+            "User-Agent": "com.projz.z.android/1.23.4-12525 (Linux; U; Android 7.1.2; SM-N975F; Build/samsung-user 7.1.2 2)",
             "timeZone": "480",
             "carrierCountryCodes": "en",
             "Content-Type": "application/json; charset=UTF-8",
@@ -44,7 +47,7 @@ class ZHeadersComposer:
                 path: str,
                 body: Union[str, bytes, dict, None] = None,
                 content_type: str = None
-                ) -> dict[str, str]:
+        ) -> dict[str, str]:
         headers = self._headers_template.copy()
         headers["nonce"] = str(uuid4())
         headers["reqTime"] = str(int(time() * 1000))
@@ -53,11 +56,11 @@ class ZHeadersComposer:
             headers["Content-Type"] = content_type
         final_body = None
         if isinstance(body, str):
-            final_body = body.encode("utf-8").hex()
+            final_body = body.encode("utf-8")
         elif isinstance(body, bytes):
-            final_body = body.hex()
+            final_body = body
         elif isinstance(body, dict):
-            final_body = dumps(body).encode("utf-8").hex()
+            final_body = dumps(body)
         headers["HJTRFS"] = self._sign_request(
             path,
             headers,
@@ -65,19 +68,31 @@ class ZHeadersComposer:
         )
         return headers
 
-    def _sign_request(self, path: str, headers: dict, body: Optional[str] = None) -> str:
-        signing_request_data = {
-            "path": path,
-            "headers": headers
-        }
+    def _sign_request(self, path: str, headers: dict, body: Optional[bytes] = None) -> str:
+        signature_data = bytes()
+        signature_data += path.encode("utf-8")
+        for signable in self._signables:
+            if header := headers.get(signable):
+                signature_data += header.encode("utf-8")
         if body:
-            signing_request_data["binaryHexBody"] = body
-        return Client().post(
-            "http://deepthreads.ru:24358/z/reqsig", json=signing_request_data
-        ).json()["signature"]
+            signature_data += body
+        mac = new(
+            bytes.fromhex(
+                "0705dd04686ef13c9228549386eb9164467fe99b284078b89ab96cb4ba6cc748"
+            ),
+            signature_data,
+            sha256
+        )
+        return b64encode(bytes.fromhex("02") + mac.digest()).decode("utf-8")
 
     def _device_id(self):
-        return Client().get("http://deepthreads.ru:24358/z/device").json()["device"]
+        installation_id = str(uuid4())
+        prefix = bytes.fromhex("02") + sha1(installation_id.encode("utf-8")).digest()
+        return (
+                prefix + sha1(
+                    prefix + sha1(bytes.fromhex("c48833a8487cc749e66eb934d0ba7f2d608a")).digest()
+                ).digest()
+        ).hex()
 
     def _set_authorization_cookie(self, sId: str):
         self.sid = sId
