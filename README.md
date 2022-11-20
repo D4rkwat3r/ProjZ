@@ -35,7 +35,7 @@ async def main():
     await client.post_blog(
         "Blog title",
         "Blog content",
-        content_rich_format=pzlib2.model.RichFormatBuilder().h1(0, 4).build(),
+        content_rich_format=projz.model.RichFormatBuilder().h1(0, 4).build(),
         cover=await client.upload_file(await async_open("cover-file.png", "rb"), projz.enum.UploadTarget.FOREGROUND),
         background=await client.upload_file(await async_open("bg-file.png", "rb"), projz.enum.UploadTarget.BACKGROUND),
         circle_list=[circle_link_info.object_id]
