@@ -325,7 +325,7 @@ class Client(Requester):
         """
         Create a new chat
         :param thread_type: ChatThreadType.ONE_ON_INE | ChatThreadType.GLOBAL | ChatThreadType.PRIVATE
-        :param invite_message_content: content of the auto-generated first message in the private chat
+        :param invite_message_content: content of the auto-generated first message in the chat
         :param invited_user_ids: ids of users invited to the chat
         :param title: title of the chat
         :param icon: chat icon model.Media object
