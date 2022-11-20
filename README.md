@@ -57,7 +57,7 @@ client = projz.Client()
 async def main():
   result = await client.login("your email", "your password")
   print(f"Logged in to account with nickname {result.user_profile.nickname}")
-  await client.register_chat_message_handler(lambda message: print(f"{message.author.nickname}: {message.content or '-'}")
+  client.register_chat_message_handler(lambda message: print(f"{message.author.nickname}: {message.content or '-'}")
 
 if __name__ == "__main__":
   loop = get_event_loop()
