@@ -45,3 +45,22 @@ async def main():
 if __name__ == "__main__":
     get_event_loop().run_until_complete(main())
 ```
+
+### Example - receive messages
+```python3
+import projz
+from asyncio import get_event_loop
+
+client = projz.Client()
+
+
+async def main():
+  result = await client.login("your email", "your password")
+  print(f"Logged in to account with nickname {result.user_profile.nickname}")
+  await client.register_chat_message_handler(lambda message: print(f"{message.author.nickname}: {message.content or '-'}")
+
+if __name__ == "__main__":
+  loop = get_event_loop()
+  loop.run_until_complete(main())
+  loop.run_forever()
+```
