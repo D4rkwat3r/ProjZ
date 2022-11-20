@@ -40,7 +40,6 @@ class Requester:
             self.time_zone
         ))
         headers.update(extra or {})
-        headers["X-Forwarded-For"] = f"{randint(1, 255)}.{randint(0, 255)}.{randint(0, 255)}.{randint(0, 255)}"
         headers["HJTRFS"] = self.provider.generate_request_signature(endpoint, headers, body or bytes())
         return headers
 
