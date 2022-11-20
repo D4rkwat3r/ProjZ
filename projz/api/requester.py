@@ -55,7 +55,6 @@ class Requester:
         if not endpoint.startswith("/"): endpoint = f"/{endpoint}"
         if params: endpoint += f"?{urlencode(params)}"
         if web: endpoint = f"/api/f{endpoint}"
-        print(f"Requester.request(\"{method}\", \"{endpoint}\")")
         async with ClientSession(base_url="https://api.projz.com" if not web else "https://www.projz.com") as session:
             response = await session.request(
                 method,
