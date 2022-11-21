@@ -46,7 +46,7 @@ class HeadersProvider(ABCHeadersProvider):
 
     def set_sid(self, sid: str) -> None: self.sid = sid
 
-    def remove_sid(self) -> None: self.sid = None 
+    def remove_sid(self) -> None: self.sid = "" 
 
     def generate_request_signature(self, path: str, headers: dict, body: bytes) -> str:
         mac = HMAC(key=bytes.fromhex("ebefcf164b887da7f924c948e1fc3e40faf230eb7d491c1de1150134b8517189"),
