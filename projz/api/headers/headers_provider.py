@@ -17,7 +17,7 @@ class HeadersProvider(ABCHeadersProvider):
 
     def get_persistent_headers(self) -> dict: return {
         "appType": "MainApp", "appVersion": "2.3.1",
-        "osType": "2", "deviceType": "1", "flavor": "apple",
+        "osType": "1", "deviceType": "1", "flavor": "google",
         "User-Agent": "com.projz.z.android/1.24.7-13774 (Linux; U; Android 7.1.2; ASUS_Z01QD; Build/Asus-user 7.1.2 2017)"
     }
 
