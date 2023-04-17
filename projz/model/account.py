@@ -10,6 +10,7 @@ class Account:
     uid: Optional[int] = None
     status: Optional[int] = None
     email: Optional[str] = None
+    phone_number: Optional[str] = None
     created_time: Optional[int] = None
     device_id: Optional[str] = None
     has_profile: Optional[int] = None

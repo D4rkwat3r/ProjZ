@@ -1,4 +1,4 @@
-from .response import AuthResponse
+from .response import AuthResult
 from .util import PaginatedList
 from .util import RichFormatBuilder
 from .media import Media
@@ -21,3 +21,8 @@ from .qi_vote_full_info import QiVoteFullInfo
 from .member_title import MemberTitle
 from .member_titles_info import MemberTitlesInfo
 from .comment import Comment
+from .currency import Currency
+from .user_task import UserTask
+from .wallet import Wallet
+from .gift_box import GiftBox
+from .transfer_order import TransferOrder

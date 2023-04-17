@@ -1,1 +1,1 @@
-from .auth_response import AuthResponse
+from .auth_response import AuthResult

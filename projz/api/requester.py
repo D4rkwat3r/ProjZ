@@ -12,8 +12,8 @@ from ujson import dumps
 from ujson import loads
 from ujson import JSONDecodeError
 from dataclasses_json import DataClassJsonMixin
-from random import randint
 from urllib.parse import urlencode
+from datetime import datetime
 
 
 class Requester:
@@ -22,13 +22,15 @@ class Requester:
         provider: ABCHeadersProvider,
         language: str = "en-US",
         country_code: str = "en",
-        time_zone: int = 180
+        time_zone: int = 180,
+        logging: bool = False
     ):
         self.provider = provider
         self.language = language
         self.country_code = country_code
         self.time_zone = time_zone
         self.device_id = self.provider.generate_device_id(str(uuid4()))
+        self.logging = logging
 
     def build_headers(self, endpoint: str, body: Optional[bytes] = None, extra: Optional[dict] = None) -> dict:
         headers = self.provider.get_persistent_headers()
@@ -55,6 +57,12 @@ class Requester:
         if not endpoint.startswith("/"): endpoint = f"/{endpoint}"
         if params: endpoint += f"?{urlencode(params)}"
         if web: endpoint = f"/api/f{endpoint}"
+        if self.logging:
+            request_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(
+                f"[HTTP {request_time}] " +
+                (f"[{method} {endpoint}]" if body is None else f"[{method} {endpoint}] [{len(body)} bytes]")
+            )
         async with ClientSession(base_url="https://api.projz.com" if not web else "https://www.projz.com") as session:
             response = await session.request(
                 method,

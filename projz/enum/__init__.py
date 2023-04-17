@@ -6,3 +6,7 @@ from .chat_message_type import ChatMessageType
 from .content_region import ContentRegion
 from .object_type import ObjectType
 from .circle_filter_type import CircleFilterType
+from .auth_type import AuthType
+from .auth_purpose import AuthPurpose
+from .user_task_type import UserTaskType
+from .currency_type import CurrencyType

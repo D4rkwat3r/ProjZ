@@ -9,7 +9,7 @@ from ..user import User
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
-class AuthResponse:
+class AuthResult:
     secret: str
     account: Account
     user_profile: User

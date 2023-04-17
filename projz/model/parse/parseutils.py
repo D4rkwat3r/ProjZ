@@ -17,9 +17,18 @@ def encode_time(time: datetime) -> int:
     return int(time.timestamp() * 1000)
 
 
+def decode_wallet_amount(amount: str) -> int:
+    if amount == "0": return 0
+    return int(amount[:len(amount) - 18])
+
+
 def time_field() -> Field:
     return field(metadata=config(decoder=decode_time, encoder=encode_time), default_factory=type(None))
 
 
 def extensions_field() -> Field:
     return field(default_factory=dict)
+
+
+def wallet_amount_field() -> Field:
+    return field(metadata=config(decoder=decode_wallet_amount), default_factory=0)

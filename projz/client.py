@@ -14,14 +14,23 @@ from random import randint
 from sys import maxsize
 from urllib.parse import urlparse
 from magic import from_buffer
+from mnemonic import Mnemonic
+from bip32utils import BIP32Key
 
 CircleReference = Union[Circle, str, int]
 
 
 class Client(Requester):
-    def __init__(self, provider: Optional[ABCHeadersProvider] = None, *args, **kwargs):
-        super().__init__(provider or HeadersProvider(), *args, **kwargs)
-        self.websocket = WebsocketListener(self)
+    def __init__(
+        self,
+        provider: Optional[ABCHeadersProvider] = None,
+        http_logging: bool = False,
+        ws_logging: bool = False,
+        *args,
+        **kwargs
+    ):
+        super().__init__(provider or HeadersProvider(), logging=http_logging, *args, **kwargs)
+        self.websocket = WebsocketListener(self, logging=ws_logging)
         self.account = None
         self.user_profile = None
 
@@ -30,7 +39,7 @@ class Client(Requester):
         await self.websocket.disconnect()
         self.user_profile, self.account = None, None
 
-    async def _auth(self, resp: AuthResponse):
+    async def _auth(self, resp: AuthResult):
         if self.provider.get_sid(): await self._logout()
         self.provider.set_sid(resp.sid)
         self.account = resp.account
@@ -46,18 +55,35 @@ class Client(Requester):
             return (await self.get_link_info(ref)).object_id
         return (await self.get_link_info(f"https://www.projz.com/s/c/{ref}")).object_id
 
-    async def login(self, email: str, password: str) -> AuthResponse:
+    async def _login(self, email: Optional[str], phone_number: Optional[str], password: str) -> AuthResult:
+        data = {"password": password}
+        if email is not None:
+            data["email"] = email
+            data["authType"] = AuthType.EMAIL.value
+        elif phone_number is not None:
+            data["phoneNumber"] = phone_number
+            data["authType"] = AuthType.PHONE_NUMBER.value
+        resp = AuthResult.from_dict(await self.post_json("/v1/auth/login", data))
+        await self._auth(resp)
+        return resp
+
+    async def login_email(self, email: str, password: str) -> AuthResult:
         """
         Login to account by email
         :param email: email address
         :param password: account password
         :return: model.AuthResponse
         """
-        resp = AuthResponse.from_dict(
-            await self.post_json("/v1/auth/login", {"authType": 1, "email": email, "password": password})
-        )
-        await self._auth(resp)
-        return resp
+        return await self._login(email=email, password=password, phone_number=None)
+    
+    async def login_phone_number(self, phone_number: str, password: str) -> AuthResult:
+        """
+        Login to account by phone number
+        :param phone_number: phone number
+        :param password: account password
+        :return: model.AuthResponse
+        """
+        return await self._login(phone_number=phone_number, password=password, email=None)
 
     async def logout(self) -> None:
         """
@@ -67,18 +93,41 @@ class Client(Requester):
         await self.post_empty("/v1/auth/logout")
         await self._logout()
 
-    async def request_security_validation(self, email: str) -> None:
+    async def _request_security_validation(
+        self,
+        email: Optional[str],
+        phone_number: Optional[str],
+        purpose: Union[AuthPurpose, int] = AuthPurpose.LOGIN
+    ) -> None:
+        data = {
+            "purpose": purpose.value if isinstance(purpose, AuthPurpose) else purpose,
+            "countryCode": self.country_code
+        }
+        if email is not None:
+            data["authType"] = AuthType.EMAIL.value
+            data["email"] = email
+        elif phone_number is not None:
+            data["authType"] = AuthType.PHONE_NUMBER.value
+            data["phoneNumber"] = phone_number
+        await self.post_json("/v1/auth/request-security-validation", data)
+
+    async def request_email_validation(self, email: str, purpose: Union[AuthPurpose, int] = AuthPurpose.LOGIN) -> None:
         """
         Send verification code to email
         :param email: email address
+        :param purpose: AuthPurpose.LOGIN, AuthPurpose.CHANGE_EMAIL, custom value...
         :return:
         """
-        await self.post_json("/v1/auth/request-security-validation", {
-            "authType": 1,
-            "purpose": 1,
-            "email": email,
-            "countryCode": self.country_code
-        })
+        return await self._request_security_validation(email=email, purpose=purpose, phone_number=None)
+
+    async def request_phone_validation(self, phone_number: str, purpose: Union[AuthPurpose, int] = AuthPurpose.LOGIN) -> None:
+        """
+        Send verification code to phone number
+        :param phone_number: phone number
+        :param purpose: AuthPurpose.LOGIN, AuthPurpose.CHANGE_PHONE, custom value...
+        :return:
+        """
+        return await self._request_security_validation(phone_number=phone_number, purpose=purpose, email=None)
 
     async def change_password(self, old: str, new: str) -> None:
         """
@@ -89,22 +138,38 @@ class Client(Requester):
         """
         await self.post_json("/v1/auth/change-password", {"oldPassword": old, "newPassword": new})
 
-    async def check_security_validation(self, email: str, code: str) -> None:
+    async def _check_security_validation(self, email: Optional[str], phone_number: Optional[str], code: str) -> None:
+        data = {"securityCode": code}
+        if email is not None:
+            data["authType"] = AuthType.EMAIL.value
+            data["email"] = email
+        elif phone_number is not None:
+            data["authType"] = AuthType.PHONE_NUMBER.value
+            data["phoneNumber"] = phone_number
+        await self.post_json("/v1/auth/check-security-validation", data)
+
+    async def check_email_validation(self, email: str, code: str) -> None:
         """
         Check verification code sent to email
         :param email: email address
         :param code: verification code
         :return:
         """
-        await self.post_json("/v1/auth/check-security-validation", {
-            "authType": 1,
-            "email": email,
-            "securityCode": code
-        })
+        await self._check_security_validation(email=email, code=code, phone_number=None)
 
-    async def register(
+    async def check_phone_validation(self, phone_number: str, code: str) -> None:
+        """
+        Check verification code sent to phone number
+        :param phone_number: phone number
+        :param code: verification code
+        :return:
+        """
+        await self._check_security_validation(phone_number=phone_number, code=code, email=None)
+
+    async def _register(
         self,
-        email: str,
+        email: Optional[str],
+        phone_number: Optional[str],
         password: str,
         nickname: str,
         tag_line: str,
@@ -115,26 +180,9 @@ class Client(Requester):
         name_card_background: Optional[Media] = None,
         invitation_code: Optional[str] = None,
         update_auth_credentials: bool = True
-    ) -> AuthResponse:
-        """
-        Create a new account
-        :param email: email address
-        :param password: account password
-        :param nickname: profile nickname
-        :param tag_line: profile tagline
-        :param icon: icon image model.Media object
-        :param gender_type: Gender.MALE | Gender.FEMALE | Gender.OTHER
-        :param birthday: year-month-day
-        :param code: verification code
-        :param name_card_background: name card background model.Media object
-        :param invitation_code: code of invitation
-        :param update_auth_credentials: is it required to update client profile and sid
-        :return: model.AuthResponse
-        """
-        resp = await self.post_json("/v1/auth/register", {
-            "authType": 1,
+    ) -> AuthResult:
+        data = {
             "purpose": 1,
-            "email": email,
             "password": password,
             "securityCode": code,
             "invitationCode": invitation_code or "",
@@ -149,10 +197,105 @@ class Client(Requester):
             "suggestedCountryCode": self.country_code.upper(),
             "ignoresDisabled": True,
             "rawDeviceIdThree": self.provider.generate_device_id_three()
-        })
-        resp = AuthResponse.from_dict(resp)
+        }
+        if email is not None:
+            data["authType"] = AuthType.EMAIL.value
+            data["email"] = email
+        elif phone_number is not None:
+            data["authType"] = AuthType.PHONE_NUMBER.value
+            data["phoneNumber"] = phone_number
+        resp = await self.post_json("/v1/auth/register", data)
+        resp = AuthResult.from_dict(resp)
         if update_auth_credentials: await self._auth(resp)
-        return AuthResponse.from_dict(resp)
+        return AuthResult.from_dict(resp)
+
+    async def register_email(
+        self,
+        email: str,
+        password: str,
+        nickname: str,
+        tag_line: str,
+        icon: Media,
+        gender_type: Gender,
+        birthday: str,
+        code: str,
+        name_card_background: Optional[Media] = None,
+        invitation_code: Optional[str] = None,
+        update_auth_credentials: bool = True
+    ) -> AuthResult:
+        """
+        Create a new account with email
+        :param email: email address
+        :param password: account password
+        :param nickname: profile nickname
+        :param tag_line: profile tagline
+        :param icon: icon image model.Media object
+        :param gender_type: Gender.MALE | Gender.FEMALE | Gender.OTHER
+        :param birthday: year-month-day
+        :param code: verification code
+        :param name_card_background: name card background model.Media object
+        :param invitation_code: code of invitation
+        :param update_auth_credentials: is it required to update client profile and sid
+        :return: model.AuthResponse
+        """
+        return await self._register(
+            email,
+            None,
+            password,
+            nickname,
+            tag_line,
+            icon,
+            gender_type,
+            birthday,
+            code,
+            name_card_background,
+            invitation_code,
+            update_auth_credentials
+        )
+
+    async def register_phone(
+        self,
+        phone_number: str,
+        password: str,
+        nickname: str,
+        tag_line: str,
+        icon: Media,
+        gender_type: Gender,
+        birthday: str,
+        code: str,
+        name_card_background: Optional[Media] = None,
+        invitation_code: Optional[str] = None,
+        update_auth_credentials: bool = True
+    ) -> AuthResult:
+        """
+        Create a new account with phone number
+        :param phone_number: phone number
+        :param password: account password
+        :param nickname: profile nickname
+        :param tag_line: profile tagline
+        :param icon: icon image model.Media object
+        :param gender_type: Gender.MALE | Gender.FEMALE | Gender.OTHER
+        :param birthday: year-month-day
+        :param code: verification code
+        :param name_card_background: name card background model.Media object
+        :param invitation_code: code of invitation
+        :param update_auth_credentials: is it required to update client profile and sid
+        :return: model.AuthResponse
+        """
+        return await self._register(
+            None,
+            phone_number,
+            password,
+            nickname,
+            tag_line,
+            icon,
+            gender_type,
+            birthday,
+            code,
+            name_card_background,
+            invitation_code,
+            update_auth_credentials
+        )
 
     async def accept_chat_invitation(self, thread_id: int) -> None:
         """
@@ -324,7 +467,7 @@ class Client(Requester):
     ) -> Chat:
         """
         Create a new chat
-        :param thread_type: ChatThreadType.ONE_ON_INE | ChatThreadType.GLOBAL | ChatThreadType.PRIVATE
+        :param thread_type: ChatThreadType.ONE_ON_ONE | ChatThreadType.PRIVATE | ChatThreadType.PUBLIC
         :param invite_message_content: content of the auto-generated first message in the chat
         :param invited_user_ids: ids of users invited to the chat
         :param title: title of the chat
@@ -876,24 +1019,127 @@ class Client(Requester):
         """
         return await self.create_poll_with_icons(title, [(item, None) for item in poll_items])
 
+    async def get_user_tasks(self) -> list[UserTask]:
+        return [
+            UserTask.from_dict(task_json)
+            for task_json in (await self.get("/v2/user-tasks"))["list"]
+        ]
+
+    async def accept_gift(self, gift_id: int) -> None:
+        """
+        Accept a gift from user or from system
+        :param gift_id: id of the gift
+        :return:
+        """
+        await self.post_empty(f"/biz/v1/gift-boxes/{gift_id}/claim")
+
+    async def complete_user_task(self, task_type: Union[UserTaskType, int]):
+        """
+        Mark user task as completed and get coins
+        :param task_type: UserTaskType enum field or custom int value
+        :return:
+        """
+        await self.get_user_tasks()
+        resp = await self.post_json("/v1/user-tasks/claim-reward", {
+            "type": task_type.value if isinstance(task_type, UserTaskType) else task_type
+        })
+        await self.accept_gift(resp["giftBox"]["boxId"])
+
+    async def send_gift(
+        self,
+        user_id: int,
+        count: int,
+        payment_password: str,
+        title: str,
+        sending_currency_type: CurrencyType
+    ) -> GiftBox:
+        """
+        Send gift to user
+        :param user_id: target user id
+        :param count: count of coins/diamonds/merch
+        :param payment_password: password needed to perform operation
+        :param title: attached message
+        :param sending_currency_type: CurrencyType enum value
+        :return: model.GiftBox
+        """
+        resp = await self.post_json("/biz/v1/gift-boxes", {
+            "toObjectId": user_id,
+            "toObjectType": ObjectType.USER.value,
+            "amount": str(count) + ("0" * 18),
+            "paymentPassword": payment_password,
+            "currencyType": sending_currency_type.value,
+            "title": title
+        })
+        return GiftBox.from_dict(resp)
+
+    async def get_transfer_orders(self, size: int = 30, page_token: Optional[str] = None) -> PaginatedList[TransferOrder]:
+        """
+        Get a list of incoming currency transfers
+        :param size: size of the list
+        :param page_token: stored in PaginatedList.next_page_token
+        :return: PaginatedList[model.TransferOrder]
+        """
+        resp = await self.get("/biz/v2/transfer-orders", {
+            "size": size
+        } if page_token is None else {
+            "size": size,
+            "pageToken": page_token
+        })
+        return PaginatedList(
+            [TransferOrder.from_dict(order_json) for order_json in resp["list"]],
+            resp.get("pagination")
+        )
+
+    async def activate_wallet(self, payment_password: str, security_code: str) -> str:
+        """
+        Activate a wallet
+        :param payment_password: password for performing payment operations
+        :param security_code: validation code
+        :return: recovery phrase
+        """
+        await self.get_wallet_info()
+        mnemonic = Mnemonic(language="english")
+        recovery_phrase = mnemonic.generate(strength=128)
+        await self.post_json("/biz/v1/wallet/0/activate", {
+            "paymentPassword": payment_password,
+            "securityCode": security_code,
+            "identity": self.account.email or self.account.phone_number,
+            "authType": AuthType.EMAIL.value if self.account.email is not None else AuthType.PHONE_NUMBER.value,
+            "recoveryPhrasePublicKey": BIP32Key.fromEntropy(mnemonic.to_seed(recovery_phrase)).PublicKey().hex()
+        })
+        return recovery_phrase
+
+    async def get_wallet_info(self) -> Optional[Wallet]:
+        """
+        Get info about user's wallet
+        :return: model.Wallet
+        """
+        resp = await self.get("/biz/v1/wallet")
+        if len(resp) == 0: return None
+        return Wallet.from_dict(resp)
+
     async def upload_file(self,
-                          file: AsyncBufferedReader,
+                          file: Union[bytes, AsyncBufferedReader],
                           target: Union[UploadTarget, int],
                           duration: int = 0,
                           raw_output: bool = False) -> Union[dict, Media]:
         """
         Upload a file to the Project Z server
-        :param file: file object returned by aiofiles.open
+        :param file: file object returned by aiofiles.open or raw in-memory byte buffer
         :param target: UploadTarget enum field or int identifier
         :param duration: audio duration in milliseconds or 0
         :param raw_output: is it required to return dictionary object instead of model.Media
         :return: dict | model.Media
         """
-        file_content = await file.read()
+        file_content = await file.read() if isinstance(file, AsyncBufferedReader) else file
         target = target if isinstance(target, int) else target.value
         writer = MultipartWriter()
         part = writer.append(file_content, {"Content-Type": from_buffer(file_content, mime=True)})
-        part.set_content_disposition("form-data", name="media", filename=file.name)
+        part.set_content_disposition(
+            "form-data",
+            name="media",
+            filename=file.name if isinstance(file, AsyncBufferedReader) else "file"
+        )
         resp = await self.post(f"/v1/media/upload?target={target}&duration={duration}",
                                writer,
                                content_type=f"multipart/form-data; boundary={writer.boundary}")
@@ -905,4 +1151,11 @@ class Client(Requester):
         content_filter: Callable[[ChatMessage], bool] = lambda _: True,
         content_transform: Callable[[ChatMessage], Any] = lambda x: x
     ) -> None:
+        """
+        Register handler to receive new message events from the server
+        :param handler: function(model.ChatMessage) -> Any
+        :param content_filter: function(model.ChatMessage) -> bool
+        :param content_transform: function(model.ChatMessage) -> Any
+        :return:
+        """
         self.websocket.subscribe(handler, lambda x: isinstance(x, ChatMessage) and content_filter, content_transform)
