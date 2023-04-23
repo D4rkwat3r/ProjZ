@@ -1,6 +1,6 @@
 from .api import Requester
 from .api.headers import ABCHeadersProvider
-from .api.headers import HeadersProvider
+from .api.headers import RPCHeadersProvider
 from .model import *
 from .enum import *
 from .websocket import WebsocketListener
@@ -29,7 +29,7 @@ class Client(Requester):
         *args,
         **kwargs
     ):
-        super().__init__(provider or HeadersProvider(), logging=http_logging, *args, **kwargs)
+        super().__init__(provider or RPCHeadersProvider(), logging=http_logging, *args, **kwargs)
         self.websocket = WebsocketListener(self, logging=ws_logging)
         self.account = None
         self.user_profile = None

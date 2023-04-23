@@ -29,10 +29,12 @@ class Requester:
         self.language = language
         self.country_code = country_code
         self.time_zone = time_zone
-        self.device_id = self.provider.generate_device_id(str(uuid4()))
+        self.device_id = None
         self.logging = logging
 
-    def build_headers(self, endpoint: str, body: Optional[bytes] = None, extra: Optional[dict] = None) -> dict:
+    async def build_headers(self, endpoint: str, body: Optional[bytes] = None, extra: Optional[dict] = None) -> dict:
+        if self.device_id is None:
+            self.device_id = await self.provider.generate_device_id(str(uuid4()))
         headers = self.provider.get_persistent_headers()
         headers.update(self.provider.get_request_info_headers(
             self.device_id,
@@ -42,7 +44,7 @@ class Requester:
             self.time_zone
         ))
         headers.update(extra or {})
-        headers["HJTRFS"] = self.provider.generate_request_signature(endpoint, headers, body or bytes())
+        headers["HJTRFS"] = await self.provider.generate_request_signature(endpoint, headers, body or bytes())
         return headers
 
     async def request(
@@ -67,7 +69,7 @@ class Requester:
             response = await session.request(
                 method,
                 endpoint,
-                headers=self.build_headers(
+                headers=await self.build_headers(
                     endpoint,
                     body,
                     {"Content-Type": content_type} if content_type is not None else None

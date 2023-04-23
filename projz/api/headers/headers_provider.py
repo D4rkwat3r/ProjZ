@@ -15,11 +15,12 @@ class HeadersProvider(ABCHeadersProvider):
     def __init__(self):
         self.sid = ""
 
-    def get_persistent_headers(self) -> dict: return {
-        "appType": "MainApp", "appVersion": "2.3.1",
-        "osType": "1", "deviceType": "1", "flavor": "google",
-        "User-Agent": "com.projz.z.android/1.24.7-13774 (Linux; U; Android 7.1.2; ASUS_Z01QD; Build/Asus-user 7.1.2 2017)"
-    }
+    def get_persistent_headers(self) -> dict:
+        return {
+            "appType": "MainApp", "appVersion": "2.27.1",
+            "osType": "2", "deviceType": "1", "flavor": "google",
+            "User-Agent": "com.projz.z.android/2.27.1-25104 (Linux; U; Android 7.1.2; ASUS_Z01QD; Build/Asus-user 7.1.2 2017)"
+        }
 
     def get_request_info_headers(self, device_id: str, nonce: str, language: str, country_code: str, time_zone: int) -> dict:
         headers = {
@@ -46,7 +47,7 @@ class HeadersProvider(ABCHeadersProvider):
 
     def set_sid(self, sid: str) -> None: self.sid = sid
 
-    def remove_sid(self) -> None: self.sid = "" 
+    def remove_sid(self) -> None: self.sid = ""
 
     def generate_request_signature(self, path: str, headers: dict, body: bytes) -> str:
         mac = HMAC(key=bytes.fromhex("ebefcf164b887da7f924c948e1fc3e40faf230eb7d491c1de1150134b8517189"),
