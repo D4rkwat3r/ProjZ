@@ -24,4 +24,11 @@ class ABCHeadersProvider(ABC):
 
     async def generate_device_id(self, installation_id: str) -> str: ...
 
-    async def generate_device_id_three(self, data: Optional[dict] = None) -> str: ...
+    async def generate_device_id_three(
+        self,
+        organization: str,
+        platform: str,
+        version: str,
+        model: str,
+        app_id: str
+    ) -> str: ...

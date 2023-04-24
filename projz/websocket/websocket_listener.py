@@ -1,4 +1,4 @@
-from ..api import Requester
+from ..api import RequestManager
 from ..error import ApiException
 from ..enum import WSEventType
 from ..util import SubscriptionHandler
@@ -18,16 +18,16 @@ from datetime import datetime
 class WebsocketListener(SubscriptionHandler):
     def __init__(
         self,
-        requester: Requester,
+        request_manager: RequestManager,
         logging: bool = False
     ):
         super().__init__()
-        self.requester = requester
-        self.provider = requester.provider
-        self.language = requester.language
-        self.country_code = requester.country_code
-        self.time_zone = requester.time_zone
-        self.device_id = requester.device_id
+        self.request_manager = request_manager
+        self.provider = request_manager.provider
+        self.language = request_manager.language
+        self.country_code = request_manager.country_code
+        self.time_zone = request_manager.time_zone
+        self.device_id = request_manager.device_id
         self.connection: ClientWebSocketResponse = None
         self.task_receiver = None
         self.task_pinger = None
@@ -43,7 +43,7 @@ class WebsocketListener(SubscriptionHandler):
         self.client_session = ClientSession(base_url="wss://ws.projz.com")
         self.connection = await self.client_session.ws_connect(
             "/v1/chat/ws",
-            headers=self.requester.build_headers("/v1/chat/ws")
+            headers=await self.request_manager.build_headers("/v1/chat/ws")
         )
         self.task_receiver = create_task(self.receive())
         self.task_pinger = create_task(self.ping())

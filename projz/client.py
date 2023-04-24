@@ -1,6 +1,7 @@
-from .api import Requester
+from .api import RequestManager
 from .api.headers import ABCHeadersProvider
 from .api.headers import RPCHeadersProvider
+from .api.control import RPC
 from .model import *
 from .enum import *
 from .websocket import WebsocketListener
@@ -14,13 +15,11 @@ from random import randint
 from sys import maxsize
 from urllib.parse import urlparse
 from magic import from_buffer
-from mnemonic import Mnemonic
-from bip32utils import BIP32Key
 
 CircleReference = Union[Circle, str, int]
 
 
-class Client(Requester):
+class Client(RequestManager):
     def __init__(
         self,
         provider: Optional[ABCHeadersProvider] = None,
@@ -196,7 +195,13 @@ class Client(Requester):
             "countryCode": self.country_code,
             "suggestedCountryCode": self.country_code.upper(),
             "ignoresDisabled": True,
-            "rawDeviceIdThree": self.provider.generate_device_id_three()
+            "rawDeviceIdThree": await self.provider.generate_device_id_three(
+                "BU0gJ0gB5TFcCfN329Vx",
+                "android",
+                f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
+                "ASUS_Z01QZ",
+                "default"
+            )
         }
         if email is not None:
             data["authType"] = AuthType.EMAIL.value
@@ -563,7 +568,7 @@ class Client(Requester):
                                page_token: Optional[str] = None,
                                with_pin: bool = False) -> PaginatedList[Chat]:
         """
-        Get public chats in the circle
+        Get control chats in the circle
         :param reference: circle id | circle link | z id
         :param size: size of the list
         :param page_token: stored in PaginatedList.next_page_token
@@ -1098,16 +1103,15 @@ class Client(Requester):
         :return: recovery phrase
         """
         await self.get_wallet_info()
-        mnemonic = Mnemonic(language="english")
-        recovery_phrase = mnemonic.generate(strength=128)
+        mnemonic, key = await RPC.generate_wallet_recovery_data(128, "english")
         await self.post_json("/biz/v1/wallet/0/activate", {
             "paymentPassword": payment_password,
             "securityCode": security_code,
             "identity": self.account.email or self.account.phone_number,
             "authType": AuthType.EMAIL.value if self.account.email is not None else AuthType.PHONE_NUMBER.value,
-            "recoveryPhrasePublicKey": BIP32Key.fromEntropy(mnemonic.to_seed(recovery_phrase)).PublicKey().hex()
+            "recoveryPhrasePublicKey": key
         })
-        return recovery_phrase
+        return mnemonic
 
     async def get_wallet_info(self) -> Optional[Wallet]:
         """

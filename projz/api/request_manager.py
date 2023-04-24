@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 from datetime import datetime
 
 
-class Requester:
+class RequestManager:
     def __init__(
         self,
         provider: ABCHeadersProvider,
