@@ -199,7 +199,7 @@ class Client(RequestManager):
                 "BU0gJ0gB5TFcCfN329Vx",
                 "android",
                 f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
-                "ASUS_Z01QZ",
+                "ASUS_Z09MN",
                 "default"
             )
         }
@@ -1121,6 +1121,23 @@ class Client(RequestManager):
         resp = await self.get("/biz/v1/wallet")
         if len(resp) == 0: return None
         return Wallet.from_dict(resp)
+
+    async def get_dices(self) -> list[Dice]:
+        """
+        Get list of currently available dices
+        :return list[model.Dice]
+        """
+        return [
+            Dice.from_dict(dice_json)
+            for dice_json in (await self.get("/v1/dices"))["diceList"]
+        ]
+
+    async def get_invitation_code(self) -> MultiInvitationCodeInfo:
+        """
+        Get info about new user invitation code
+        :return: model.MultiInvitationCodeInfo
+        """
+        return MultiInvitationCodeInfo.from_dict(await self.get("/v1/users/multi-invitation-code"))
 
     async def upload_file(self,
                           file: Union[bytes, AsyncBufferedReader],

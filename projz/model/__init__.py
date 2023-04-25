@@ -1,4 +1,5 @@
 from .response import AuthResult
+from .response import MultiInvitationCodeInfo
 from .util import PaginatedList
 from .util import RichFormatBuilder
 from .media import Media

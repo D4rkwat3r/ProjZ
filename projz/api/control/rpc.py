@@ -1,8 +1,8 @@
 from pickle import loads
 from pickle import dumps
-from pickle import PicklingError
+from pickle import UnpicklingError
 from aiohttp import ClientSession
-from aiohttp import ClientConnectionError
+from aiohttp import ClientError
 from typing import Any
 
 
@@ -20,10 +20,10 @@ class RPC:
                     await (await session.post(f"/rpc?func={func}&v={cls.PICKLE_PROTOCOL}", data=data)).read()
                 )
                 if isinstance(response, tuple) and response[0] == "e":
-                    raise Exception(f"RPC error ({response[1]}).")
-            except PicklingError:
+                    raise Exception(f"RPC error ({response[1]}). {response[2]}")
+            except UnpicklingError:
                 raise ValueError(f"Cannot unpickle response from the RPC server.")
-            except ClientConnectionError:
+            except ClientError:
                 raise ConnectionError(f"Cannot send request to the RPC server.")
         return response
 
