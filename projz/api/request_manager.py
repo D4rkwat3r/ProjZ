@@ -14,6 +14,9 @@ from ujson import JSONDecodeError
 from dataclasses_json import DataClassJsonMixin
 from urllib.parse import urlencode
 from datetime import datetime
+from random import randint
+from struct import pack
+from socket import inet_ntoa
 
 
 class RequestManager:
@@ -21,7 +24,7 @@ class RequestManager:
         self,
         provider: ABCHeadersProvider,
         language: str = "en-US",
-        country_code: str = "en",
+        country_code: str = "us",
         time_zone: int = 180,
         logging: bool = False
     ):
@@ -44,6 +47,7 @@ class RequestManager:
             self.time_zone
         ))
         headers.update(extra or {})
+        headers["X-Forwarded-For"] = inet_ntoa(pack(">I", randint(1, 0xffffffff)))
         headers["HJTRFS"] = await self.provider.generate_request_signature(endpoint, headers, body or bytes())
         return headers
 
@@ -76,16 +80,16 @@ class RequestManager:
                 ) if not web else dict(),
                 data=body
             )
-        try: response_json = loads(await response.text())
-        except (JSONDecodeError, UnicodeDecodeError): raise BadResponse("Can't read response from Project Z API")
-        if "apiCode" in response_json: raise ApiException.get(response_json)
-        return response_json
+            try: response_json = loads(await response.text())
+            except (JSONDecodeError, UnicodeDecodeError): raise BadResponse("Can't read response from Project Z API")
+            if "apiCode" in response_json: raise ApiException.get(response_json)
+            return response_json
 
     async def get(self, endpoint: str, params: Optional[dict] = None, web: bool = False) -> dict:
         return await self.request("GET", endpoint, params=params or dict(), web=web)
 
-    async def delete(self, endpoint: str, web: bool = False) -> dict:
-        return await self.request("DELETE", endpoint, web=web)
+    async def delete(self, endpoint: str, params: Optional[dict] = None, web: bool = False) -> dict:
+        return await self.request("DELETE", endpoint, params=params or dict(), web=web)
 
     async def post(
         self,
@@ -104,7 +108,7 @@ class RequestManager:
         return await self.request("POST", endpoint, body=content.getvalue(), content_type=content_type, web=web)
 
     async def post_json(self, endpoint: str, body: Union[dict, DataClassJsonMixin], web: bool = False) -> dict:
-        return await self.post(endpoint, body=body, content_type="application/json", web=web)
+        return await self.post(endpoint, body=body, content_type="application/json; charset=UTF-8", web=web)
 
     async def post_empty(self, endpoint: str, web: bool = False):
         return await self.post(endpoint, body="", content_type=None, web=web)

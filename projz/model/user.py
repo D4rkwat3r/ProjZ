@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Optional
 from datetime import datetime
+from .member_title import MemberTitle
 from .media import Media
 from .rich_format import RichFormat
 from .sticker import Sticker
@@ -81,4 +82,8 @@ class User:
     fans_count: Optional[int] = None
     friends_count: Optional[int] = None
     blogs_count: Optional[int] = None
+    circle_member_title_list: list[MemberTitle] = field(default_factory=list)
+    circle_joined_time: Optional[datetime] = time_field()
+    circle_role: Optional[int] = None
+    joined_status: Optional[int] = None
     extensions: dict = extensions_field()

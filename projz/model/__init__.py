@@ -2,6 +2,7 @@ from .response import AuthResult
 from .response import MultiInvitationCodeInfo
 from .util import PaginatedList
 from .util import RichFormatBuilder
+from .util import RichFormatTextBuilder
 from .media import Media
 from .account import Account
 from .user import User
@@ -20,10 +21,12 @@ from .rich_format import RichFormat
 from .qi_vote_info import QiVoteInfo
 from .qi_vote_full_info import QiVoteFullInfo
 from .member_title import MemberTitle
-from .member_titles_info import MemberTitlesInfo
+from .response import MemberTitlesInfo
 from .comment import Comment
 from .currency import Currency
 from .user_task import UserTask
 from .wallet import Wallet
 from .gift_box import GiftBox
 from .transfer_order import TransferOrder
+from .party import Party
+from .blocked_item_wrapper import BlockedItemWrapper

@@ -22,6 +22,7 @@ CircleReference = Union[Circle, str, int]
 class Client(RequestManager):
     def __init__(
         self,
+        commands_prefix = "/",
         provider: Optional[ABCHeadersProvider] = None,
         http_logging: bool = False,
         ws_logging: bool = False,
@@ -30,6 +31,7 @@ class Client(RequestManager):
     ):
         super().__init__(provider or RPCHeadersProvider(), logging=http_logging, *args, **kwargs)
         self.websocket = WebsocketListener(self, logging=ws_logging)
+        self.commands_prefix = commands_prefix
         self.account = None
         self.user_profile = None
 
@@ -178,6 +180,7 @@ class Client(RequestManager):
         code: str,
         name_card_background: Optional[Media] = None,
         invitation_code: Optional[str] = None,
+        *,
         update_auth_credentials: bool = True
     ) -> AuthResult:
         data = {
@@ -199,7 +202,7 @@ class Client(RequestManager):
                 "BU0gJ0gB5TFcCfN329Vx",
                 "android",
                 f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
-                "ASUS_Z09MN",
+                "ASUS_Z01MN",
                 "default"
             )
         }
@@ -226,6 +229,7 @@ class Client(RequestManager):
         code: str,
         name_card_background: Optional[Media] = None,
         invitation_code: Optional[str] = None,
+        *,
         update_auth_credentials: bool = True
     ) -> AuthResult:
         """
@@ -270,6 +274,7 @@ class Client(RequestManager):
         code: str,
         name_card_background: Optional[Media] = None,
         invitation_code: Optional[str] = None,
+        *,
         update_auth_credentials: bool = True
     ) -> AuthResult:
         """
@@ -562,35 +567,82 @@ class Client(RequestManager):
         """
         await self.delete(f"/v1/chat/threads/{chat_id}")
 
-    async def get_circle_chats(self,
-                               reference: CircleReference,
-                               size: int = 30,
-                               page_token: Optional[str] = None,
-                               with_pin: bool = False) -> PaginatedList[Chat]:
+    async def get_circle_chats(
+        self,
+        reference: CircleReference,
+        size: int = 30,
+        page_token: Optional[str] = None,
+        query_type: Union[PartyQueryType, int] = PartyQueryType.ONLINE,
+        *,
+        with_pin: bool = False
+    ) -> PaginatedList[Chat]:
         """
-        Get control chats in the circle
+        Get public chats in the circle
         :param reference: circle id | circle link | z id
         :param size: size of the list
         :param page_token: stored in PaginatedList.next_page_token
         :param with_pin: include pinned chats
+        :param query_type: PartyQueryType.ALL | PartyQueryType.ONLINE
         :return: PaginatedList[model.Chat]
         """
         resp = await self.get(f"/v1/chat/threads", {
             "type": "circle",
             "objectId": await self._resolve_circle_reference(reference),
             "size": size,
-            "withPin": with_pin
+            "withPin": "false",
+            "partyQueryType": query_type.value if isinstance(query_type, PartyQueryType) else query_type
         } if page_token is None else {
             "type": "circle",
             "objectId": await self._resolve_circle_reference(reference),
             "size": size,
             "withPin": with_pin,
+            "partyQueryType": query_type.value if isinstance(query_type, PartyQueryType) else query_type,
             "pageToken": page_token
         })
         return PaginatedList(
             [Chat.from_dict(user_json) for user_json in resp["list"]],
             resp.get("pagination")
         )
+
+    async def get_joined_chats(
+        self,
+        start: int = 0,
+        size: int = 30,
+        query_type: Union[ChatQueryType, int] = ChatQueryType.PRIVATE
+    ) -> list[Chat]:
+        """
+        Get a list of chats that an account has joined
+        :param start: offset of the list
+        :param size: size of the list
+        :param query_type: ChatQueryType enum field or type identifier (default: private)
+        :return: list[Chat]
+        """
+        resp = await self.get("/v1/chat/joined-threads", {
+            "type": query_type.value if isinstance(query_type, ChatQueryType) else query_type,
+            "start": start,
+            "size": size,
+        })
+        return [
+            Chat.from_dict(chat_json)
+            for chat_json in resp["list"]
+        ]
+
+    async def get_joined_parties(self, start: int = 0, size: int = 30) -> list[Party]:
+        """
+        Get a list of public chats that an account has joined
+        :param start: offset of the list
+        :param size: size of the list
+        :return: list[Party]
+        """
+        resp = await self.get("/v1/chat/joined-parties", {
+            "type": "parties",
+            "start": start,
+            "size": size
+        })
+        return [
+            Party.from_dict(party_json)
+            for party_json in resp["list"]
+        ]
 
     async def get_qi_votes_info(self, object_id: int) -> QiVoteFullInfo:
         """
@@ -618,7 +670,7 @@ class Client(RequestManager):
             "timezone": self.time_zone
         }))
 
-    async def get_chat_managers(self, chat_id: int, only_co_hosts: bool = False) -> list[User]:
+    async def get_chat_managers(self, chat_id: int, *, only_co_hosts: bool = False) -> list[User]:
         """
         Get chat admins
         :param chat_id: id of the chat
@@ -637,16 +689,17 @@ class Client(RequestManager):
     async def get_chat_members(self,
                                chat_id: int,
                                size: int = 30,
-                               only_active_members: bool = False,
-                               exclude_manager: bool = False,
                                query_word: str = "",
-                               page_token: Optional[str] = None) -> PaginatedList[User]:
+                               page_token: Optional[str] = None,
+                               *,
+                               only_active_members: bool = False,
+                               exclude_managers: bool = False) -> PaginatedList[User]:
         """
         Get list of chat members
         :param chat_id: id of the chat
         :param size: size of the list
         :param only_active_members: include only active members
-        :param exclude_manager: exclude management team
+        :param exclude_managers: exclude management team
         :param query_word: search query
         :param page_token: stored in PaginatedList.next_page_token
         :return: PaginatedList[model.User]
@@ -654,12 +707,12 @@ class Client(RequestManager):
         resp = await self.get(f"/v1/chat/threads/{chat_id}/members", {
             "onlyActiveMember": only_active_members,
             "size": size,
-            "isExcludeManger": exclude_manager,
+            "isExcludeManger": exclude_managers,
             "queryWord": query_word
         } if page_token is None else {
             "onlyActiveMember": only_active_members,
             "size": size,
-            "isExcludeManger": exclude_manager,
+            "isExcludeManger": exclude_managers,
             "queryWord": query_word,
             "pageToken": page_token
         })
@@ -671,26 +724,27 @@ class Client(RequestManager):
     async def get_circle_members(self,
                                  reference: CircleReference,
                                  size: int = 30,
-                                 members_type: str = "normal",
-                                 exclude_manager: bool = False,
-                                 page_token: Optional[str] = None) -> PaginatedList[User]:
+                                 query_type: CircleMembersQueryType = CircleMembersQueryType.NORMAL,
+                                 page_token: Optional[str] = None,
+                                 *,
+                                 exclude_managers: bool = False) -> PaginatedList[User]:
         """
         Get list of circle members
         :param reference: circle id | circle link | z id
         :param size: size of the list
-        :param members_type: members filter, default: normal
-        :param exclude_manager: exclude management team
+        :param query_type: CircleMembersQueryType.NORMAL | CircleMembersQueryType.BLOCKED
+        :param exclude_managers: exclude management team
         :param page_token: stored in PaginatedList.next_page_token
         :return: PaginatedList[model.User]
         """
         resp = await self.get(f"/v1/circles/{await self._resolve_circle_reference(reference)}/members", {
-            "type": members_type,
+            "type": query_type.value,
             "size": size,
-            "isExcludeManger": exclude_manager
+            "isExcludeManger": exclude_managers
         } if page_token is None else {
-            "type": members_type,
+            "type": query_type.value,
             "size": size,
-            "isExcludeManger": exclude_manager,
+            "isExcludeManger": exclude_managers,
             "pageToken": page_token
         })
         return PaginatedList(
@@ -719,6 +773,10 @@ class Client(RequestManager):
         :param poll_items: list of poll item contents
         :return: model.Poll
         """
+        poll_items = list(map(
+            lambda x: (x[0], x[1].to_dict()) if isinstance(x[1], Media) else x,
+            poll_items
+        ))
         return Poll.from_dict(await self.post_json("/v1/polls", {
             "title": title,
             "pollItemList": [
@@ -747,24 +805,24 @@ class Client(RequestManager):
         ]
 
     async def get_circles(self,
-                          filter_type: Union[CircleFilterType, str] = "recommend",
+                          filter_type: Union[CircleFilterType, str],
                           size: int = 30,
                           category_id: int = 0,
                           page_token: Optional[str] = None) -> PaginatedList[Circle]:
         """
         Get circles attached to specified category
-        :param filter_type: CircleFilterType enum field or filter identifier (default: recommend)
+        :param filter_type: CircleFilterType enum field or filter identifier
         :param size: size of the list
         :param category_id: id of the category, 0 for all categories
         :param page_token: stored in PaginatedList.next_page_token
         :return: PaginatedList[model.Circle]
         """
         resp = await self.get("/v1/circles", {
-            "type": filter_type,
+            "type": filter_type.value if isinstance(filter_type, CircleFilterType) else filter_type,
             "size": size,
             "categoryId": category_id
         } if page_token is None else {
-            "type": filter_type,
+            "type": filter_type.value if isinstance(filter_type, CircleFilterType) else filter_type,
             "size": size,
             "categoryId": category_id,
             "pageToken": page_token
@@ -773,32 +831,6 @@ class Client(RequestManager):
             [Circle.from_dict(circle_json) for circle_json in resp["list"]],
             resp.get("pagination")
         )
-
-    async def get_latest_circles(self,
-                                 size: int = 30,
-                                 category_id: int = 0,
-                                 page_token: Optional[str] = None) -> PaginatedList[Circle]:
-        """
-        Get circles with filter_type=latest
-        :param size: size of the list
-        :param category_id: id of the category, 0 for all categories
-        :param page_token: stored in PaginatedList.next_page_token
-        :return: PaginatedList[model.Circle]
-        """
-        return await self.get_circles(CircleFilterType.LATEST, size, category_id, page_token)
-
-    async def get_recommended_circles(self,
-                                      size: int = 30,
-                                      category_id: int = 0,
-                                      page_token: Optional[str] = None) -> PaginatedList[Circle]:
-        """
-        Get circles with filter_type=recommend
-        :param size: size of the list
-        :param category_id: id of the category, 0 for all categories
-        :param page_token: stored in PaginatedList.next_page_token
-        :return: PaginatedList[model.Circle]
-        """
-        return await self.get_circles(CircleFilterType.RECOMMEND, size, category_id, page_token)
 
     async def visit_profile(self, user_id: int) -> None:
         """
@@ -882,8 +914,9 @@ class Client(RequestManager):
                            parent_id: int,
                            size: int = 30,
                            reply_id: int = 0,
-                           only_pinned: bool = False,
-                           page_token: Optional[str] = None) -> PaginatedList[Comment]:
+                           page_token: Optional[str] = None,
+                           *,
+                           only_pinned: bool = False) -> PaginatedList[Comment]:
         """
         Get list of the comments
         :param parent_type: ObjectType enum field or type identifier
@@ -913,40 +946,6 @@ class Client(RequestManager):
             resp.get("pagination")
         )
 
-    async def get_blog_comments(self,
-                                parent_id: int,
-                                size: int = 30,
-                                reply_id: int = 0,
-                                only_pinned: bool = False,
-                                page_token: Optional[str] = None) -> PaginatedList[Comment]:
-        """
-        Get list of comments with parent_type=ObjectType.BLOG
-        :param parent_id: id of the parent
-        :param size: size of the list
-        :param reply_id: include only replies to comment with id reply_id
-        :param only_pinned: include only pinned comments
-        :param page_token: stored in PaginatedList.next_page_token
-        :return: PaginatedList[model.Comment]
-        """
-        return await self.get_comments(ObjectType.BLOG, parent_id, size, reply_id, only_pinned, page_token)
-
-    async def get_user_comments(self,
-                                parent_id: int,
-                                size: int = 30,
-                                reply_id: int = 0,
-                                only_pinned: bool = False,
-                                page_token: Optional[str] = None) -> PaginatedList[Comment]:
-        """
-        Get list of comments with parent_type=ObjectType.USER
-        :param parent_id: id of the parent
-        :param size: size of the list
-        :param reply_id: include only replies to comment with id reply_id
-        :param only_pinned: include only pinned comments
-        :param page_token: stored in PaginatedList.next_page_token
-        :return: PaginatedList[model.Comment]
-        """
-        return await self.get_comments(ObjectType.USER, parent_id, size, reply_id, only_pinned, page_token)
-
     async def comment(self,
                       parent_type: Union[ObjectType, int],
                       parent_id: int,
@@ -971,49 +970,6 @@ class Client(RequestManager):
         if content is not None: data["content"] = content
         if reply_to is not None: data["replyId"] = reply_to
         return Comment.from_dict(await self.post_json("/v1/comments", data))
-
-    async def comment_blog(self,
-                           parent_id: int,
-                           content: Optional[str] = None,
-                           media_list: Optional[list[Media]] = None,
-                           reply_to: Optional[int] = None) -> Comment:
-        """
-        Create a comment with parent_type=ObjectType.BLOG
-        :param parent_id: id of the parent
-        :param content: text content of the comment
-        :param media_list: attachments of the comment
-        :param reply_to: reply to the comment id
-        :return: model.Comment
-        """
-        return await self.comment(ObjectType.BLOG, parent_id, content, media_list, reply_to)
-
-    async def comment_profile(self,
-                              parent_id: int,
-                              content: Optional[str] = None,
-                              media_list: Optional[list[Media]] = None,
-                              reply_to: Optional[int] = None) -> Comment:
-        """
-        Create a comment with parent_type=ObjectType.USER
-        :param parent_id: id of the parent
-        :param content: text content of the comment
-        :param media_list: attachments of the comment
-        :param reply_to: reply to the comment id
-        :return: model.Comment
-        """
-        return await self.comment(ObjectType.USER, parent_id, content, media_list, reply_to)
-
-    async def get_popular_circles(self,
-                                  size: int = 30,
-                                  category_id: int = 0,
-                                  page_token: Optional[str] = None) -> PaginatedList[Circle]:
-        """
-        Get circles with filter_type=popular
-        :param size: size of the list
-        :param category_id: id of the category, 0 for all categories
-        :param page_token: stored in PaginatedList.next_page_token
-        :return: PaginatedList[model.Circle]
-        """
-        return await self.get_circles(CircleFilterType.POPULAR, size, category_id, page_token)
 
     async def create_poll(self, title: str, poll_items: list[str]) -> Poll:
         """
@@ -1139,10 +1095,257 @@ class Client(RequestManager):
         """
         return MultiInvitationCodeInfo.from_dict(await self.get("/v1/users/multi-invitation-code"))
 
+    async def follow(self, user_id: int) -> None:
+        """
+        Follow user profile
+        :param user_id: target user id
+        :return:
+        """
+        await self.post_empty(f"/v1/users/membership/{user_id}")
+
+    async def unfollow(self, user_id: int) -> None:
+        """
+        Unfollow user profile
+        :param user_id: target user id
+        :return:
+        """
+        await self.delete(f"/v1/users/membership/{user_id}")
+
+    async def get_blocked_items(
+        self,
+        reference: CircleReference,
+        items_type: Union[ObjectType, int],
+        size: int = 30,
+        page_token: Optional[str] = None
+    ) -> PaginatedList[BlockedItemWrapper]:
+        """
+        Get blocked items in the circle
+        :param reference: circle id | circle link | z id
+        :param items_type: ObjectType enum field or type identifier
+        :param size: size of the list
+        :param page_token: stored in PaginatedList.next_page_token
+        :return: PaginatedList[BlockedItemWrapper]
+        """
+        resp = await self.get(f"/v1/circles/{await self._resolve_circle_reference(reference)}/blocked-items", {
+            "objectType": items_type.value if isinstance(items_type, ObjectType) else items_type,
+            "size": size
+        } if page_token is None else {
+            "objectType": items_type.value if isinstance(items_type, ObjectType) else items_type,
+            "size": size,
+            "page_token": page_token
+        })
+        return PaginatedList(
+            [BlockedItemWrapper.from_dict(item_json) for item_json in resp["list"]],
+            resp.get("pagination")
+        )
+
+    async def get_blocked_blogs(
+        self,
+        reference: CircleReference,
+        size: int = 30,
+        page_token: Optional[str] = None
+    ) -> PaginatedList[Blog]:
+        """
+        Get blogs blocked in the selected circle
+        :param reference: circle id | circle link | z id
+        :param size: size of the list
+        :param page_token: stored in PaginatedList.next_page_token
+        :return: PaginatedList[Blog]
+        """
+        wrappers = await self.get_blocked_items(reference, ObjectType.BLOG, size, page_token)
+        return PaginatedList(
+            list(map(
+                lambda x: x.blog,
+                filter(lambda x: x.blog is not None, wrappers)
+            )),
+            next_page_token=wrappers.next_page_token
+        )
+
+    async def get_blocked_chats(
+        self,
+        reference: CircleReference,
+        size: int = 30,
+        page_token: Optional[str] = None
+    ) -> PaginatedList[Chat]:
+        """
+        Get chats blocked in the selected circle
+        :param reference: circle id | circle link | z id
+        :param size: size of the list
+        :param page_token: stored in PaginatedList.next_page_token
+        :return: PaginatedList[Chat]
+        """
+        wrappers = await self.get_blocked_items(reference, ObjectType.CHAT, size, page_token)
+        return PaginatedList(
+            list(map(
+                lambda x: x.chat,
+                filter(lambda x: x.chat is not None, wrappers)
+            )),
+            next_page_token=wrappers.next_page_token
+        )
+
+    async def block_item(self, reference: CircleReference, item_id: int, item_type: Union[ObjectType, int]) -> None:
+        """
+        Block item in the selected circle
+        :param reference: circle id | circle link | z id
+        :param item_id: id of the item
+        :param item_type: ObjectType enum field or type identifier
+        :return:
+        """
+        await self.post_json(f"/v1/circles/{await self._resolve_circle_reference(reference)}/blocked-items", {
+            "objectId": item_id,
+            "objectType": item_type.value if isinstance(item_type, ObjectType) else item_type
+        })
+
+    async def unblock_item(self, reference: CircleReference, item_id: int) -> None:
+        """
+        Unblock item in the selected circle
+        :param reference: circle id | circle link | z id
+        :param item_id: id of the item
+        :return:
+        """
+        await self.delete(f"/v1/circles/{await self._resolve_circle_reference(reference)}/blocked-items/{item_id}")
+
+    async def change_chat_online_status(self, chat_id: int, *, is_online: bool) -> None:
+        """
+        Enable or disable the chat
+        :param chat_id: id of the chat
+        :param is_online: True | False
+        :return:
+        """
+        await self.post_json(f"/v1/chat/threads/{chat_id}/party-online-status", {
+            "partyOnlineStatus": 1 if is_online else 2
+        })
+
+    async def remove_circle_member(
+        self,
+        reference: CircleReference,
+        member_id: int,
+        *,
+        block_member: bool,
+        remove_content: bool
+    ) -> None:
+        """
+        Kick or ban circle member
+        :param reference: circle id | circle link | z id
+        :param member_id: id of the member
+        :param block_member: is it required to ban member
+        :param remove_content: is it required to remove all content posted by member
+        :return:
+        """
+        await self.post_json(f"/v1/circles/{await self._resolve_circle_reference(reference)}/members/{member_id}", {
+            "type": "block" if block_member else "remove",
+            "removeContent": remove_content
+        })
+
+    async def kick_circle_member(
+        self,
+        reference: CircleReference,
+        member_id: int,
+        *,
+        remove_content: bool = False
+    ) -> None:
+        """
+        Kick circle member
+        :param reference: circle id | circle link | z id
+        :param member_id: id of the member
+        :param remove_content: is it required to remove all content posted by member
+        :return:
+        """
+        await self.remove_circle_member(reference, member_id, block_member=False, remove_content=remove_content)
+
+    async def ban_circle_member(
+        self,
+        reference: CircleReference,
+        member_id: int,
+        *,
+        remove_content: bool = False
+    ) -> None:
+        """
+        Ban circle member
+        :param reference: circle id | circle link | z id
+        :param member_id: id of the member
+        :param remove_content: is it required to remove all content posted by member
+        :return:
+        """
+        await self.remove_circle_member(reference, member_id, block_member=True, remove_content=remove_content)
+
+    async def unban_circle_member(self, reference: CircleReference, member_id: int) -> None:
+        """
+        Unban circle member
+        :param reference: circle id | circle link | z id
+        :param member_id: id of the member
+        :return:
+        """
+        await self.post_json(f"/v1/circles/{await self._resolve_circle_reference(reference)}/members/{member_id}", {
+            "type": "unblock"
+        })
+
+    async def remove_chat_member(
+        self,
+        chat_id: int,
+        member_id: int,
+        *,
+        block_member: bool,
+        remove_content: bool
+    ) -> None:
+        """
+        Kick or ban chat member
+        :param chat_id: id of the chat
+        :param member_id: id of the member
+        :param block_member: is it required to ban member
+        :param remove_content: is it required to remove all content sent by member
+        :return:
+        """
+        await self.delete(f"/v1/chat/threads/{chat_id}/members/{member_id}", {
+            "block": block_member,
+            "removeContent": remove_content
+        })
+
+    async def kick_chat_member(self, chat_id: int, member_id: int, *, remove_content: bool = False) -> None:
+        """
+        Kick chat member
+        :param chat_id: id of the chat
+        :param member_id: id of the member
+        :param remove_content: is it required to remove all content posted by member
+        :return:
+        """
+        await self.remove_chat_member(chat_id, member_id, block_member=False, remove_content=remove_content)
+
+    async def ban_chat_member(self, chat_id: int, member_id: int, *, remove_content: bool = False) -> None:
+        """
+        Ban chat member
+        :param chat_id: id of the chat
+        :param member_id: id of the member
+        :param remove_content: is it required to remove all content posted by member
+        :return:
+        """
+        await self.remove_chat_member(chat_id, member_id, block_member=True, remove_content=remove_content)
+
+    async def invite_to_chat(self, chat_id: int, invited_users: Union[str, list[str]]) -> None:
+        """
+        Invite a new user to the chat
+        :param chat_id: id of the chat
+        :param invited_users: id(s) of the user(s)
+        :return:
+        """
+        await self.post_json(f"/v1/chat/threads/{chat_id}/members-invite", {
+            "invitedUids": [invited_users] if isinstance(invited_users, str) else invited_users
+        })
+
+    async def delete_chat_message(self, chat_id: int, message_id: int) -> None:
+        """
+        Delete a message from the chat
+        :param chat_id: id of the chat
+        :param message_id: id of the message
+        :return:
+        """
+        await self.delete(f"/v1/chat/threads/{chat_id}/messages/{message_id}")
+
     async def upload_file(self,
                           file: Union[bytes, AsyncBufferedReader],
                           target: Union[UploadTarget, int],
                           duration: int = 0,
+                          *,
                           raw_output: bool = False) -> Union[dict, Media]:
         """
         Upload a file to the Project Z server
@@ -1166,6 +1369,27 @@ class Client(RequestManager):
                                content_type=f"multipart/form-data; boundary={writer.boundary}")
         return resp if raw_output else Media.from_dict(resp)
 
+    def on_message(self, text: str):
+        """
+        A high-level decorator for registering message handlers with a specific text.
+        :param text: text of the messages
+        :return:
+        """
+        def decorator(handler: Callable[[ChatMessage], Any]):
+            self.register_chat_message_handler(handler, lambda x: x.content == text)
+
+        return decorator
+
+    def on_command(self, text: str, prefix: Optional[str] = None):
+        """
+        A high-level decorator for registering message handlers with a commands with a specific text.
+        The command differs from the message in that it has a prefix.
+        :param text: text of the messages
+        :param prefix: The prefix of the command. By default, the prefix passed to the Client arguments is used.
+        :return:
+        """
+        return self.on_message(f"{prefix or self.commands_prefix}{text}")
+
     def register_chat_message_handler(
         self,
         handler: Callable[[ChatMessage], Any],
@@ -1179,4 +1403,4 @@ class Client(RequestManager):
         :param content_transform: function(model.ChatMessage) -> Any
         :return:
         """
-        self.websocket.subscribe(handler, lambda x: isinstance(x, ChatMessage) and content_filter, content_transform)
+        self.websocket.subscribe(handler, lambda x: isinstance(x, ChatMessage) and content_filter(x), content_transform)
