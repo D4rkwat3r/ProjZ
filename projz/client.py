@@ -1,6 +1,6 @@
 from .api import RequestManager
 from .api.headers import ABCHeadersProvider
-from .api.headers import RPCHeadersProvider
+from .api.headers import HeadersProvider
 from .api.control import RPC
 from .model import *
 from .enum import *
@@ -22,14 +22,14 @@ CircleReference = Union[Circle, str, int]
 class Client(RequestManager):
     def __init__(
         self,
-        commands_prefix = "/",
+        commands_prefix: str = "/",
         provider: Optional[ABCHeadersProvider] = None,
         http_logging: bool = False,
         ws_logging: bool = False,
         *args,
         **kwargs
     ):
-        super().__init__(provider or RPCHeadersProvider(), logging=http_logging, *args, **kwargs)
+        super().__init__(provider or HeadersProvider(), logging=http_logging, *args, **kwargs)
         self.websocket = WebsocketListener(self, logging=ws_logging)
         self.commands_prefix = commands_prefix
         self.account = None
@@ -76,7 +76,7 @@ class Client(RequestManager):
         :return: model.AuthResponse
         """
         return await self._login(email=email, password=password, phone_number=None)
-    
+
     async def login_phone_number(self, phone_number: str, password: str) -> AuthResult:
         """
         Login to account by phone number
@@ -198,7 +198,7 @@ class Client(RequestManager):
             "countryCode": self.country_code,
             "suggestedCountryCode": self.country_code.upper(),
             "ignoresDisabled": True,
-            "rawDeviceIdThree": await self.provider.generate_device_id_three(
+            "rawDeviceIdThree": await RPC.generate_smid(
                 "BU0gJ0gB5TFcCfN329Vx",
                 "android",
                 f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
@@ -259,7 +259,7 @@ class Client(RequestManager):
             code,
             name_card_background,
             invitation_code,
-            update_auth_credentials
+            update_auth_credentials=update_auth_credentials
         )
 
     async def register_phone(
@@ -304,7 +304,7 @@ class Client(RequestManager):
             code,
             name_card_background,
             invitation_code,
-            update_auth_credentials
+            update_auth_credentials=update_auth_credentials
         )
 
     async def accept_chat_invitation(self, thread_id: int) -> None:

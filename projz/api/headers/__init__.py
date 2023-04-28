@@ -1,3 +1,2 @@
 from .abc_headers_provider import ABCHeadersProvider
 from .headers_provider import HeadersProvider
-from .rpc_headers_provider import RPCHeadersProvider

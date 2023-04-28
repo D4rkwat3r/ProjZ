@@ -14,9 +14,6 @@ from ujson import JSONDecodeError
 from dataclasses_json import DataClassJsonMixin
 from urllib.parse import urlencode
 from datetime import datetime
-from random import randint
-from struct import pack
-from socket import inet_ntoa
 
 
 class RequestManager:
@@ -47,7 +44,6 @@ class RequestManager:
             self.time_zone
         ))
         headers.update(extra or {})
-        headers["X-Forwarded-For"] = inet_ntoa(pack(">I", randint(1, 0xffffffff)))
         headers["HJTRFS"] = await self.provider.generate_request_signature(endpoint, headers, body or bytes())
         return headers
 
