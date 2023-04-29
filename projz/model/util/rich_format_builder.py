@@ -24,7 +24,15 @@ class RichFormatBuilder:
         return self
 
     def paragraph_span(self, start: int, end: int, style: Optional[str] = None, alignment: Optional[str] = None) -> "RichFormatBuilder":
-        self._fmt.paragraph_spans.append(RichFormat.ParagraphSpan(start, end, RichFormat.ParagraphSpan.Data(style, alignment)))
+        self._fmt.paragraph_spans.append(
+            RichFormat.ParagraphSpan(start, end, RichFormat.ParagraphSpan.Data(style, alignment))
+        )
+        return self
+
+    def attachment_span(self, start: int, end: int, data: RichFormat.AttachmentSpan.Data) -> "RichFormatBuilder":
+        self._fmt.attachment_spans.append(
+            RichFormat.AttachmentSpan(start, end, data)
+        )
         return self
 
     def bold(self, start: int, end: int) -> "RichFormatBuilder": return self.text_span(start, end, bold=True)
@@ -61,34 +69,30 @@ class RichFormatBuilder:
         title: str = "",
         media_id: int = 0
     ) -> "RichFormatBuilder":
-        self._fmt.attachment_spans.append(RichFormat.AttachmentSpan(start, start + 1, RichFormat.AttachmentSpan.Data(
+        return self.attachment_span(start, start + 1, RichFormat.AttachmentSpan.Data(
             type="link",
             link=RichFormat.AttachmentSpan.Data.Link(url, custom_title, title, media_id, str(uuid4()))
-        )))
-        return self
+        ))
 
     def mention(self, start: int, username: str, uid: int, role_id: int = 0,
                 role_name_length: int = 0) -> "RichFormatBuilder":
         end = len(f"@{username}" if not username.startswith("@") else username)
-        self._fmt.attachment_spans.append(RichFormat.AttachmentSpan(start, end, RichFormat.AttachmentSpan.Data(
+        return self.attachment_span(start, end, RichFormat.AttachmentSpan.Data(
             type="mention",
             mention=RichFormat.AttachmentSpan.Data.Mention(uid, role_id, role_name_length)
-        )))
-        return self
+        ))
 
     def poll(self, start: int, poll_id: int) -> "RichFormatBuilder":
-        self._fmt.attachment_spans.append(RichFormat.AttachmentSpan(start, start + 1, RichFormat.AttachmentSpan.Data(
+        return self.attachment_span(start, start + 1, RichFormat.AttachmentSpan.Data(
             type="poll",
             poll=RichFormat.AttachmentSpan.Data.Poll(poll_id)
-        )))
-        return self
+        ))
 
     def media(self, start: int, media_id: int) -> "RichFormatBuilder":
-        self._fmt.attachment_spans.append(RichFormat.AttachmentSpan(start, start + 1, RichFormat.AttachmentSpan.Data(
+        return self.attachment_span(start, start + 1, RichFormat.AttachmentSpan.Data(
             type="media",
             media=RichFormat.AttachmentSpan.Data.Media(media_id)
-        )))
-        return self
+        ))
 
     def build(self) -> RichFormat:
         return self._fmt

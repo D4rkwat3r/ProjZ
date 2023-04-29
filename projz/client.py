@@ -384,7 +384,9 @@ class Client(RequestManager):
                            attached_media: Optional[Media] = None,
                            attached_audio: Optional[Media] = None,
                            poll_id: Optional[int] = None,
-                           dice_id: Optional[int] = None) -> ChatMessage:
+                           dice_id: Optional[int] = None,
+                           *,
+                           get_sent_message: bool = True) -> Optional[ChatMessage]:
         """
         Send message to the chat
         :param thread_id: id of the chat
@@ -396,6 +398,8 @@ class Client(RequestManager):
         :param attached_audio: attached to the message audio model.Media object
         :param poll_id: attached to the message poll id
         :param dice_id: attached to the message dice id
+        :param get_sent_message: If set to False, the request for information about the
+        sent message will not be executed and the function will return None.
         :return:
         """
         if attached_media is not None and attached_audio is not None:
@@ -409,14 +413,26 @@ class Client(RequestManager):
             "extensions": {}
         }
         if content is not None: data["content"] = content
-        if reply_to is not None: data["extensions"]["replyMessage"] = reply_to
+        if reply_to is not None: data["extensions"]["replyMessageId"] = reply_to
         if message_rich_format is not None: data["richFormat"] = message_rich_format.to_dict()
         if attached_media is not None: data["media"] = attached_media.to_dict()
         if attached_audio is not None: data["media"] = attached_audio.to_dict()
         if poll_id is not None: data["extensions"]["pollId"] = poll_id
         if dice_id is not None: data["extensions"]["diceId"] = dice_id
         resp = await self.websocket.send_request(1, True, seq_id, **dict(threadId=thread_id, msg=data))
-        return await self.get_chat_message(resp["threadId"], resp["messageId"])
+        if get_sent_message:
+            return await self.get_chat_message(resp["threadId"], resp["messageId"])
+
+    async def show_typing(self, thread_id: int) -> None:
+        """
+        Displays the text to the chat members that the account is "typing".
+        :param thread_id: id of the chat
+        :return:
+        """
+        await self.send_message(thread_id, ChatMessageType.TYPING, get_sent_message=False)
+
+    async def get_block_users_info(self) -> BlockUsersInfo:
+        return BlockUsersInfo.from_dict(await self.get("/v1/users/block-uids"))
 
     async def get_link_info(self, link: str) -> LinkInfo:
         """

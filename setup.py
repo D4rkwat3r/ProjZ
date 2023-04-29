@@ -37,7 +37,7 @@ def main():
 
     setup(
         name="ProjZ.py",
-        version="2.4.2",
+        version="2.4.3",
         author="D4rkwat3r",
         description="An asynchronous library for creating scripts and chatbots in Project Z.",
         packages=find_packages(),

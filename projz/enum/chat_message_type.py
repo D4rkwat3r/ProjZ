@@ -8,3 +8,4 @@ class ChatMessageType(Enum):
     STICKER = 7
     DICE = 44
     POLL = 45
+    TYPING = 60
