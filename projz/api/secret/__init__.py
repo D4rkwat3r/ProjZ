@@ -9,7 +9,7 @@ local_secrets_initialized = False
 
 with open(f"{path.dirname(__file__)}{sep}data.txt", "r") as file:
     try:
-        exec(loads(b85decode(bytes())), secret_functions.__dict__)
+        exec(loads(b85decode(file.read())), secret_functions.__dict__)
         local_secrets_initialized = True
     except: print(f"ProjZ.py warning: Failed to initialize the local signature and device id generators, "
                   f"the library will use RPC functions. Perhaps your Python version "

@@ -1,6 +1,11 @@
 # ProjZ
 A simple asynchronous library for interaction with Project Z
 
+## Installation
+ ```commandline
+ pip install projz.py
+ ```
+
 ### Example - login and get object id from link
 ```python3
 import projz
@@ -80,7 +85,7 @@ if __name__ == "__main__":
     loop.run_until_complete(main())
     loop.run_forever()
 ```
-## Addition: Using CLI functions,
+## Addition: Using CLI functions
 ### Print available functions
 ```commandline
 python -m projz list-actions
