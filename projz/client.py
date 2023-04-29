@@ -1369,14 +1369,14 @@ class Client(RequestManager):
                                content_type=f"multipart/form-data; boundary={writer.boundary}")
         return resp if raw_output else Media.from_dict(resp)
 
-    def on_message(self, text: str):
+    def on_message(self, text: Optional[str] = None):
         """
         A high-level decorator for registering message handlers with a specific text.
         :param text: text of the messages
         :return:
         """
         def decorator(handler: Callable[[ChatMessage], Any]):
-            self.register_chat_message_handler(handler, lambda x: x.content == text)
+            self.register_chat_message_handler(handler, lambda x: (x.content == text) if text is not None else True)
 
         return decorator
 

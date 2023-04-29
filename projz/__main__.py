@@ -9,18 +9,15 @@ from . import *
 parser = ArgumentParser(description="ProjZ.py library command line interface")
 parser.add_argument("action", type=str, help="The action to be performed. "
                                              "You can view the list of possible actions by "
-                                             "setting the value \"list-action\"")
+                                             "setting the value \"list-actions\"")
 parser.add_argument("-l", "--login", type=str, dest="login", help="Email/Phone number of the account")
 parser.add_argument("-p", "--password", type=str, dest="password", help="Password of the account")
 parser.add_argument("-a", "--auth", type=str, dest="auth_type", help="Auth method: email or phone")
 parser.add_argument("-i", "--info", type=str, dest="info", help="Link to the object to get information about")
 parser.add_argument("-t", "--thread", type=str, dest="thread", help="Link to the chat to send message")
 parser.add_argument("-m", "--message", type=str, dest="message", help="Text of the message to send")
-parser.add_argument("-r", "--repeat", type=int, dest="repeat", help="The number of messages sent.")
+parser.add_argument("-r", "--repeat", type=int, dest="repeat", help="The number of messages sent")
 parser.add_argument("-c", "--circle", type=str, dest="circle", help="Link to the circle to join or leave")
-parser.add_argument("-s", "--solve", type=str, dest="solve", help="The solution of the captcha sent "
-                                                                  "to the mail or to the phone. "
-                                                                  "Needed to verify or register an account")
 cli_args = parser.parse_args()
 
 client = Client()
