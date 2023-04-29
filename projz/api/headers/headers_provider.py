@@ -1,5 +1,7 @@
 from .abc_headers_provider import ABCHeadersProvider
 from ..secret import secret_functions
+from ..secret import local_secrets_initialized
+from ..control import RPC
 from time import time
 
 
@@ -42,10 +44,12 @@ class HeadersProvider(ABCHeadersProvider):
     def remove_sid(self) -> None: self.sid = ""
 
     async def generate_request_signature(self, path: str, headers: dict, body: bytes) -> str:
-        return secret_functions.s(path, headers, body)
+        return secret_functions.s(path, headers, body) if local_secrets_initialized \
+            else await RPC.generate_request_signature(path, headers, body)
 
     async def generate_device_id(self, installation_id: str):
-        return secret_functions.di(installation_id)
+        return secret_functions.di(installation_id) if local_secrets_initialized \
+            else await RPC.generate_device_id(installation_id)
 
     async def generate_device_id_three(
         self,
