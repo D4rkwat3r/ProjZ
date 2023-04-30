@@ -3,6 +3,7 @@ from asyncio import get_event_loop
 from asyncio import create_task
 from asyncio import gather
 from inspect import iscoroutinefunction
+from inspect import signature
 from sys import exit as sys_exit
 from . import *
 
@@ -34,13 +35,18 @@ def print_error(func: Callable):
     return wrapper
 
 
-def authenticated(func):
+def authenticated(func: Callable):
     def wrapper(*args, **kwargs):
         if cli_args.login is None or cli_args.password is None or cli_args.auth_type is None:
             print("Specify login, password and auth type.")
             return
-        return get_event_loop().run_until_complete(func(*args, **kwargs)) if iscoroutinefunction(func) \
+        loop = get_event_loop()
+        auth_result = loop.run_until_complete(login())
+        if len(signature(func).parameters) > 0:
+            args = (auth_result,) + args
+        return loop.run_until_complete(func(*args, **kwargs)) if iscoroutinefunction(func) \
             else func(*args, **kwargs)
+
     return wrapper
 
 
@@ -66,8 +72,7 @@ def action_list_actions():
 
 @print_error
 @authenticated
-async def action_login():
-    auth = await login()
+async def action_login(auth: AuthResult):
     print(f"[+] Session ID: {auth.sid}")
     print(f"[+] Refresh token (secret): {auth.secret}")
     print("[+] Account:")
@@ -97,7 +102,6 @@ async def action_link_info():
     if cli_args.info is None:
         print("Specify --info.")
         return
-    await login()
     info = await client.get_link_info(cli_args.info)
     print(f"[+] Path: {info.path or '-'}")
     print(f"[+] Object ID: {info.object_id or '-'}")
@@ -115,7 +119,6 @@ async def action_send_message():
     if cli_args.repeat == 0:
         print("Illegal argument (repeat=0).")
         return
-    await login()
 
     chat_id = (await client.get_link_info(cli_args.thread)).object_id
     results = await gather(*[create_task(safe_send_chat_message(chat_id)) for _ in range(cli_args.repeat)])
@@ -130,7 +133,6 @@ async def action_join_circle():
     if cli_args.circle is None:
         print("Specify --circle.")
         return
-    await login()
 
     await client.join_circle(cli_args.circle)
     print(f"[+] Joined successfully.")
@@ -142,7 +144,6 @@ async def action_leave_circle():
     if cli_args.circle is None:
         print("Specify --circle.")
         return
-    await login()
 
     await client.leave_circle(cli_args.circle)
     print(f"[+] Left successfully.")
@@ -151,8 +152,6 @@ async def action_leave_circle():
 @print_error
 @authenticated
 async def action_listen():
-    await login()
-
     client.register_chat_message_handler(
         lambda x: print(f"{x.author.nickname}: {x.content}"),
         lambda x: x.content is not None and x.author is not None
