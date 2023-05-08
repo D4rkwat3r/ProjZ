@@ -8,12 +8,17 @@ from dataclasses_json import config
 
 
 def decode_time(encoded_time: Union[int, str, None]) -> Optional[datetime]:
-    if isinstance(encoded_time, int): return datetime.fromtimestamp(encoded_time)
-    elif isinstance(encoded_time, str): return isoparse(encoded_time)
+    if isinstance(encoded_time, int):
+        try: return datetime.fromtimestamp(encoded_time)
+        except OSError: return datetime.fromtimestamp(encoded_time // 1000)
+    elif isinstance(encoded_time, str):
+        return isoparse(encoded_time)
     else: return None
 
 
-def encode_time(time: datetime) -> int:
+def encode_time(time: Optional[datetime]) -> Optional[int]:
+    if time is None:
+        return None
     return int(time.timestamp() * 1000)
 
 

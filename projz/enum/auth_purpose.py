@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class AuthPurpose(Enum):
+    RENEW_SID = 0
     LOGIN = 1
     CHANGE_EMAIL = 3
     CHANGE_PHONE_NUMBER = 4

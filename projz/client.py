@@ -56,35 +56,53 @@ class Client(RequestManager):
             return (await self.get_link_info(ref)).object_id
         return (await self.get_link_info(f"https://www.projz.com/s/c/{ref}")).object_id
 
-    async def _login(self, email: Optional[str], phone_number: Optional[str], password: str) -> AuthResult:
-        data = {"password": password}
+    async def _login(
+        self,
+        email: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        password: Optional[str] = None,
+        secret: Optional[str] = None
+    ) -> AuthResult:
+        data = {"password": password} if password is not None else {}
         if email is not None:
             data["email"] = email
             data["authType"] = AuthType.EMAIL.value
         elif phone_number is not None:
             data["phoneNumber"] = phone_number
             data["authType"] = AuthType.PHONE_NUMBER.value
+        elif secret is not None:
+            data["secret"] = secret
+            data["authType"] = AuthType.SECRET.value
+            data["purpose"] = AuthPurpose.RENEW_SID.value
         resp = AuthResult.from_dict(await self.post_json("/v1/auth/login", data))
         await self._auth(resp)
         return resp
 
     async def login_email(self, email: str, password: str) -> AuthResult:
         """
-        Login to account by email
+        Login to account using a email
         :param email: email address
         :param password: account password
-        :return: model.AuthResponse
+        :return: model.AuthResult
         """
         return await self._login(email=email, password=password, phone_number=None)
 
     async def login_phone_number(self, phone_number: str, password: str) -> AuthResult:
         """
-        Login to account by phone number
+        Login to account using a phone number
         :param phone_number: phone number
         :param password: account password
-        :return: model.AuthResponse
+        :return: model.AuthResult
         """
         return await self._login(phone_number=phone_number, password=password, email=None)
+
+    async def __login_secret(self, secret: str) -> AuthResult:
+        """
+        Login to account using a secret token that acts as a refresh token.
+        :param secret: secret token
+        :return: model.AuthResult
+        """
+        return await self._login(secret=secret)
 
     async def logout(self) -> None:
         """
@@ -202,7 +220,7 @@ class Client(RequestManager):
                 "BU0gJ0gB5TFcCfN329Vx",
                 "android",
                 f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
-                "ASUS_Z01MN",
+                "ASUS_Z02MQ",
                 "default"
             )
         }

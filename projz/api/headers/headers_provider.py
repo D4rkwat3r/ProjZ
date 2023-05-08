@@ -1,7 +1,8 @@
 from .abc_headers_provider import ABCHeadersProvider
-from ..secret import secret_functions
-from ..secret import local_secrets_initialized
-from ..control import RPC
+from hashlib import sha1
+from hashlib import sha256
+from hmac import HMAC
+from base64 import b64encode
 from time import time
 
 
@@ -44,12 +45,21 @@ class HeadersProvider(ABCHeadersProvider):
     def remove_sid(self) -> None: self.sid = ""
 
     async def generate_request_signature(self, path: str, headers: dict, body: bytes) -> str:
-        return secret_functions.s(path, headers, body) if local_secrets_initialized \
-            else await RPC.generate_request_signature(path, headers, body)
+        mac = HMAC(key=bytes.fromhex("ce070279278de1b6390b76942c13a0b0aa0fda6aedd6f2d655eda7cf6543b35f" + ("6a" * 32)),
+                   msg=path.encode("utf-8"),
+                   digestmod=sha256)
+        for header in [headers[signable] for signable in self.get_signable_header_keys() if signable in headers]:
+            mac.update(header.encode("utf-8"))
+        if body: mac.update(body)
+        return b64encode(bytes.fromhex("04") + mac.digest()).decode("utf-8")
 
-    async def generate_device_id(self, installation_id: str):
-        return secret_functions.di(installation_id) if local_secrets_initialized \
-            else await RPC.generate_device_id(installation_id)
+    async def generate_device_id(self, installation_id: str) -> str:
+        prefix = bytes.fromhex("04") + sha1(installation_id.encode("utf-8")).digest()
+        return (
+            prefix + sha1(
+                prefix + sha1(bytes.fromhex("997ec928a85f539e3fa124761e7572ef852e")).digest()
+            ).digest()
+        ).hex()
 
     async def generate_device_id_three(
         self,
