@@ -1,6 +1,6 @@
 from enum import Enum
 
 
-class PartyQueryType(Enum):
+class EPartyQueryType(Enum):
     ALL = 0
     ONLINE = 1

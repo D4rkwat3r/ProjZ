@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class UploadTarget(Enum):
+class EUploadTarget(Enum):
     USER_ICON = 1
     BACKGROUND = 2
     FOREGROUND = 3

@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class CurrencyType(Enum):
+class ECurrencyType(Enum):
     COINS = 100
     MERCH = 101
     DIAMONDS = 103

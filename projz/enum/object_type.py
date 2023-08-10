@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ObjectType(Enum):
+class EObjectType(Enum):
     CHAT = 1
     BLOG = 2
     USER = 4

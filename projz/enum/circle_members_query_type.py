@@ -1,6 +1,6 @@
 from enum import Enum
 
 
-class CircleMembersQueryType(Enum):
+class ECircleMembersQueryType(Enum):
     NORMAL = "normal"
     BLOCKED = "blocked"

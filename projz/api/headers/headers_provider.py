@@ -1,4 +1,4 @@
-from .abc_headers_provider import ABCHeadersProvider
+from .base_headers_provider import IHeadersProvider
 from hashlib import sha1
 from hashlib import sha256
 from hmac import HMAC
@@ -6,7 +6,7 @@ from base64 import b64encode
 from time import time
 
 
-class HeadersProvider(ABCHeadersProvider):
+class HeadersProvider(IHeadersProvider):
     def __init__(self):
         self.sid = ""
 

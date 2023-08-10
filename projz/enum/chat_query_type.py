@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ChatQueryType(Enum):
+class EChatQueryType(Enum):
     PRIVATE = "private"
     INVITE = "invite"
     AT_MENTION = "atMention"

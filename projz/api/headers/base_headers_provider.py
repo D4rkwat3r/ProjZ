@@ -1,7 +1,7 @@
 from abc import ABC
 
 
-class ABCHeadersProvider(ABC):
+class IHeadersProvider(ABC):
     def get_persistent_headers(self) -> dict: ...
 
     def get_request_info_headers(self,

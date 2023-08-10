@@ -8,9 +8,6 @@ from aiofiles import open as async_open
 from os import remove
 from . import *
 
-print("CLI is currently unavailable.")
-sys_exit(0)
-
 parser = ArgumentParser(description="ProjZ.py library command line interface")
 parser.add_argument("action", type=str, help="The action to be performed. "
                                              "You can view the list of possible actions by "
@@ -23,14 +20,6 @@ parser.add_argument("--thread", type=str, dest="thread", help="Link to the chat 
 parser.add_argument("--message", type=str, dest="message", help="Text of the message to send")
 parser.add_argument("--repeat", type=int, dest="repeat", help="The number of messages sent")
 parser.add_argument("--circle", type=str, dest="circle", help="Link to the circle to join or leave")
-parser.add_argument("--purpose", type=str, dest="purpose", help="Purpose of sending the code: "
-                                                                "login,"
-                                                                "change-email, "
-                                                                "change-phone,"
-                                                                "activate-wallet or "
-                                                                "recovery-payment-password")
-parser.add_argument("--destination", type=str, dest="destination", help="Phone or email for sending captcha")
-parser.add_argument("--solve", type=str, dest="solve", help="Solution of the sent captcha")
 parser.add_argument(
     "-fLH",
     "--flag-logging-http",
@@ -117,6 +106,7 @@ def with_args(*needed_cli_args):
                     return
                 function_args.append(matching_cli_arg)
             args += tuple(function_args)
+
             return run_function(func, *args, **kwargs)
         return wrapper
 
@@ -134,7 +124,7 @@ async def login(
     elif auth_type_str == "phone":
         return await client.login_phone_number(login_str, password_str)
     else:
-        return await client.__login_secret(secret_str)
+        return await client.login_secret(secret_str)
 
 
 async def write_auth_file(auth: AuthResult):
@@ -201,8 +191,8 @@ async def action_login(auth: AuthResult):
 
 
 @print_error
-@with_auth(get_auth_response=False)
 @with_args("link")
+@with_auth(get_auth_response=False)
 async def action_link_info(link: str):
     info = await client.get_link_info(link)
     print(f"[+] Path: {info.path or '-'}")
@@ -213,8 +203,8 @@ async def action_link_info(link: str):
 
 
 @print_error
-@with_auth(get_auth_response=False)
 @with_args("thread", "message", "repeat")
+@with_auth(get_auth_response=False)
 async def action_send_message(chat_link: str, message_content: str, repeat: int):
     chat_id = (await client.get_link_info(chat_link)).object_id
     results = await gather(*[create_task(safe_send_chat_message(chat_id, message_content)) for _ in range(repeat)])
@@ -224,16 +214,16 @@ async def action_send_message(chat_link: str, message_content: str, repeat: int)
 
 
 @print_error
-@with_auth(get_auth_response=False)
 @with_args("circle")
+@with_auth(get_auth_response=False)
 async def action_join_circle(circle_link: str):
     await client.join_circle(circle_link)
     print(f"[+] Joined successfully.")
 
 
 @print_error
-@with_auth(get_auth_response=False)
 @with_args("circle")
+@with_auth(get_auth_response=False)
 async def action_leave_circle(circle_link: str):
     await client.leave_circle(circle_link)
     print(f"[+] Left successfully.")
@@ -256,10 +246,6 @@ action_mapping = {
     "send-message": [action_send_message, "Send message to the chat."],
     "join-circle": [action_join_circle, "Join to the circle by the link."],
     "leave-circle": [action_leave_circle, "Leave from the circle by the link."],
-    # "send-verification-code": [action_send_verification, "Send verification code to phone or email."],
-    # "check-verification-code": [action_check_verification, "Check verification code sent to phone or email."],
-    # "register": [action_register, "Register a new account."],
-    # "activate-wallet": [action_activate_wallet, "Activate a wallet."]б
     "listen": [action_listen, "Listen for the chat messages."]
 }
 

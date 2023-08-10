@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ContentRegion(Enum):
+class EContentRegion(Enum):
     ALL = 0
     ENGLISH = 1
     ARABIC = 2

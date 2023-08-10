@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ChatMessageType(Enum):
+class EChatMessageType(Enum):
     TEXT = 1
     MEDIA = 2
     AUDIO = 6

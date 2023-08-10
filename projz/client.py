@@ -1,7 +1,6 @@
 from .api import RequestManager
-from .api.headers import ABCHeadersProvider
+from .api.headers import IHeadersProvider
 from .api.headers import HeadersProvider
-from .api.control import RPC
 from .model import *
 from .enum import *
 from .websocket import WebsocketListener
@@ -23,7 +22,7 @@ class Client(RequestManager):
     def __init__(
         self,
         commands_prefix: str = "/",
-        provider: Optional[ABCHeadersProvider] = None,
+        provider: Optional[IHeadersProvider] = None,
         http_logging: bool = False,
         ws_logging: bool = False,
         *args,
@@ -66,14 +65,14 @@ class Client(RequestManager):
         data = {"password": password} if password is not None else {}
         if email is not None:
             data["email"] = email
-            data["authType"] = AuthType.EMAIL.value
+            data["authType"] = EAuthType.EMAIL.value
         elif phone_number is not None:
             data["phoneNumber"] = phone_number
-            data["authType"] = AuthType.PHONE_NUMBER.value
+            data["authType"] = EAuthType.PHONE_NUMBER.value
         elif secret is not None:
             data["secret"] = secret
-            data["authType"] = AuthType.SECRET.value
-            data["purpose"] = AuthPurpose.RENEW_SID.value
+            data["authType"] = EAuthType.SECRET.value
+            data["purpose"] = EAuthPurpose.RENEW_SID.value
         resp = AuthResult.from_dict(await self.post_json("/v1/auth/login", data))
         await self._auth(resp)
         return resp
@@ -96,7 +95,7 @@ class Client(RequestManager):
         """
         return await self._login(phone_number=phone_number, password=password, email=None)
 
-    async def __login_secret(self, secret: str) -> AuthResult:
+    async def login_secret(self, secret: str) -> AuthResult:
         """
         Login to account using a secret token that acts as a refresh token.
         :param secret: secret token
@@ -116,21 +115,21 @@ class Client(RequestManager):
         self,
         email: Optional[str],
         phone_number: Optional[str],
-        purpose: Union[AuthPurpose, int] = AuthPurpose.LOGIN
+        purpose: Union[EAuthPurpose, int] = EAuthPurpose.LOGIN
     ) -> None:
         data = {
-            "purpose": purpose.value if isinstance(purpose, AuthPurpose) else purpose,
+            "purpose": purpose.value if isinstance(purpose, EAuthPurpose) else purpose,
             "countryCode": self.country_code
         }
         if email is not None:
-            data["authType"] = AuthType.EMAIL.value
+            data["authType"] = EAuthType.EMAIL.value
             data["email"] = email
         elif phone_number is not None:
-            data["authType"] = AuthType.PHONE_NUMBER.value
+            data["authType"] = EAuthType.PHONE_NUMBER.value
             data["phoneNumber"] = phone_number
         await self.post_json("/v1/auth/request-security-validation", data)
 
-    async def request_email_validation(self, email: str, purpose: Union[AuthPurpose, int] = AuthPurpose.LOGIN) -> None:
+    async def request_email_validation(self, email: str, purpose: Union[EAuthPurpose, int] = EAuthPurpose.LOGIN) -> None:
         """
         Send verification code to email
         :param email: email address
@@ -139,7 +138,7 @@ class Client(RequestManager):
         """
         return await self._request_security_validation(email=email, purpose=purpose, phone_number=None)
 
-    async def request_phone_validation(self, phone_number: str, purpose: Union[AuthPurpose, int] = AuthPurpose.LOGIN) -> None:
+    async def request_phone_validation(self, phone_number: str, purpose: Union[EAuthPurpose, int] = EAuthPurpose.LOGIN) -> None:
         """
         Send verification code to phone number
         :param phone_number: phone number
@@ -160,10 +159,10 @@ class Client(RequestManager):
     async def _check_security_validation(self, email: Optional[str], phone_number: Optional[str], code: str) -> None:
         data = {"securityCode": code}
         if email is not None:
-            data["authType"] = AuthType.EMAIL.value
+            data["authType"] = EAuthType.EMAIL.value
             data["email"] = email
         elif phone_number is not None:
-            data["authType"] = AuthType.PHONE_NUMBER.value
+            data["authType"] = EAuthType.PHONE_NUMBER.value
             data["phoneNumber"] = phone_number
         await self.post_json("/v1/auth/check-security-validation", data)
 
@@ -193,7 +192,7 @@ class Client(RequestManager):
         nickname: str,
         tag_line: str,
         icon: Media,
-        gender_type: Gender,
+        gender_type: EGender,
         birthday: str,
         code: str,
         name_card_background: Optional[Media] = None,
@@ -201,39 +200,42 @@ class Client(RequestManager):
         *,
         update_auth_credentials: bool = True
     ) -> AuthResult:
-        data = {
-            "purpose": 1,
-            "password": password,
-            "securityCode": code,
-            "invitationCode": invitation_code or "",
-            "nickname": nickname,
-            "tagLine": tag_line,
-            "icon": icon.to_dict(),
-            "nameCardBackground": name_card_background.to_dict() if name_card_background is not None else None,
-            "gender": gender_type.value,
-            "birthday": birthday,
-            "requestToBeReactivated": False,
-            "countryCode": self.country_code,
-            "suggestedCountryCode": self.country_code.upper(),
-            "ignoresDisabled": True,
-            "rawDeviceIdThree": await RPC.generate_smid(
-                "BU0gJ0gB5TFcCfN329Vx",
-                "android",
-                f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
-                "ASUS_Z02MQ",
-                "default"
-            )
-        }
-        if email is not None:
-            data["authType"] = AuthType.EMAIL.value
-            data["email"] = email
-        elif phone_number is not None:
-            data["authType"] = AuthType.PHONE_NUMBER.value
-            data["phoneNumber"] = phone_number
-        resp = await self.post_json("/v1/auth/register", data)
-        resp = AuthResult.from_dict(resp)
-        if update_auth_credentials: await self._auth(resp)
-        return AuthResult.from_dict(resp)
+        raise NotImplementedError("[register] Not implemented -"
+                                  "rawDeviceIdThree is required, "
+                                  "but the correct algorithm for generating it is currently unknown.")
+        # data = {
+        #    "purpose": 1,
+        #    "password": password,
+        #    "securityCode": code,
+        #    "invitationCode": invitation_code or "",
+        #    "nickname": nickname,
+        #    "tagLine": tag_line,
+        #    "icon": icon.to_dict(),
+        #    "nameCardBackground": name_card_background.to_dict() if name_card_background is not None else None,
+        #    "gender": gender_type.value,
+        #    "birthday": birthday,
+        #    "requestToBeReactivated": False,
+        #    "countryCode": self.country_code,
+        #    "suggestedCountryCode": self.country_code.upper(),
+        #    "ignoresDisabled": True,
+        #    "rawDeviceIdThree": await self.provider.generate_device_id_three(
+        #        "BU0gJ0gB5TFcCfN329Vx",
+        #        "android",
+        #        f"{randint(1, 12)}.{randint(1, 12)}.{randint(1, 12)}",
+        #        "ASUS_Z02MQ",
+        #        "default"
+        #    )
+        # }
+        # if email is not None:
+        #    data["authType"] = AuthType.EMAIL.value
+        #    data["email"] = email
+        # elif phone_number is not None:
+        #    data["authType"] = AuthType.PHONE_NUMBER.value
+        #    data["phoneNumber"] = phone_number
+        # resp = await self.post_json("/v1/auth/register", data)
+        # resp = AuthResult.from_dict(resp)
+        # if update_auth_credentials: await self._auth(resp)
+        # return AuthResult.from_dict(resp)
 
     async def register_email(
         self,
@@ -242,7 +244,7 @@ class Client(RequestManager):
         nickname: str,
         tag_line: str,
         icon: Media,
-        gender_type: Gender,
+        gender_type: EGender,
         birthday: str,
         code: str,
         name_card_background: Optional[Media] = None,
@@ -287,7 +289,7 @@ class Client(RequestManager):
         nickname: str,
         tag_line: str,
         icon: Media,
-        gender_type: Gender,
+        gender_type: EGender,
         birthday: str,
         code: str,
         name_card_background: Optional[Media] = None,
@@ -395,7 +397,7 @@ class Client(RequestManager):
 
     async def send_message(self,
                            thread_id: int,
-                           message_type: Union[ChatMessageType, int] = 1,
+                           message_type: Union[EChatMessageType, int] = 1,
                            content: Optional[str] = None,
                            reply_to: Optional[int] = None,
                            message_rich_format: Optional[RichFormat] = None,
@@ -447,7 +449,7 @@ class Client(RequestManager):
         :param thread_id: id of the chat
         :return:
         """
-        await self.send_message(thread_id, ChatMessageType.TYPING, get_sent_message=False)
+        await self.send_message(thread_id, EChatMessageType.TYPING, get_sent_message=False)
 
     async def get_block_users_info(self) -> BlockUsersInfo:
         return BlockUsersInfo.from_dict(await self.get("/v1/users/block-uids"))
@@ -498,7 +500,7 @@ class Client(RequestManager):
 
     async def start_chat(
         self,
-        thread_type: ChatThreadType = ChatThreadType.ONE_ON_ONE,
+        thread_type: EChatThreadType = EChatThreadType.ONE_ON_ONE,
         invite_message_content: Optional[str] = None,
         invited_user_ids: Union[str, list[str]] = None,
         circle_list: Optional[CircleReference] = None,
@@ -568,7 +570,7 @@ class Client(RequestManager):
         """
         return Chat.from_dict(await self.get(f"/v1/chat/one-on-one-chat/{user_id}"))
 
-    async def get_recommended_user_namecards(self, size: int = 100, gender_type: Union[Gender, int] = 0) -> list[User]:
+    async def get_recommended_user_namecards(self, size: int = 100, gender_type: Union[EGender, int] = 0) -> list[User]:
         """
         Get recommended user namecards
         :param size: size of the list
@@ -606,7 +608,7 @@ class Client(RequestManager):
         reference: CircleReference,
         size: int = 30,
         page_token: Optional[str] = None,
-        query_type: Union[PartyQueryType, int] = PartyQueryType.ONLINE,
+        query_type: Union[EPartyQueryType, int] = EPartyQueryType.ONLINE,
         *,
         with_pin: bool = False
     ) -> PaginatedList[Chat]:
@@ -624,13 +626,13 @@ class Client(RequestManager):
             "objectId": await self._resolve_circle_reference(reference),
             "size": size,
             "withPin": "false",
-            "partyQueryType": query_type.value if isinstance(query_type, PartyQueryType) else query_type
+            "partyQueryType": query_type.value if isinstance(query_type, EPartyQueryType) else query_type
         } if page_token is None else {
             "type": "circle",
             "objectId": await self._resolve_circle_reference(reference),
             "size": size,
             "withPin": with_pin,
-            "partyQueryType": query_type.value if isinstance(query_type, PartyQueryType) else query_type,
+            "partyQueryType": query_type.value if isinstance(query_type, EPartyQueryType) else query_type,
             "pageToken": page_token
         })
         return PaginatedList(
@@ -642,7 +644,7 @@ class Client(RequestManager):
         self,
         start: int = 0,
         size: int = 30,
-        query_type: Union[ChatQueryType, int] = ChatQueryType.PRIVATE
+        query_type: Union[EChatQueryType, int] = EChatQueryType.PRIVATE
     ) -> list[Chat]:
         """
         Get a list of chats that an account has joined
@@ -652,7 +654,7 @@ class Client(RequestManager):
         :return: list[Chat]
         """
         resp = await self.get("/v1/chat/joined-threads", {
-            "type": query_type.value if isinstance(query_type, ChatQueryType) else query_type,
+            "type": query_type.value if isinstance(query_type, EChatQueryType) else query_type,
             "start": start,
             "size": size,
         })
@@ -689,7 +691,7 @@ class Client(RequestManager):
             "timezone": self.time_zone
         }))
 
-    async def send_qi(self, object_id: int, target_type: Union[ObjectType, int] = 1, count: int = 1) -> QiVoteInfo:
+    async def send_qi(self, object_id: int, target_type: Union[EObjectType, int] = 1, count: int = 1) -> QiVoteInfo:
         """
         Send qi to the specified object
         :param object_id: id of the target
@@ -758,7 +760,7 @@ class Client(RequestManager):
     async def get_circle_members(self,
                                  reference: CircleReference,
                                  size: int = 30,
-                                 query_type: CircleMembersQueryType = CircleMembersQueryType.NORMAL,
+                                 query_type: ECircleMembersQueryType = ECircleMembersQueryType.NORMAL,
                                  page_token: Optional[str] = None,
                                  *,
                                  exclude_managers: bool = False) -> PaginatedList[User]:
@@ -821,8 +823,8 @@ class Client(RequestManager):
         }))
 
     async def get_categories(self,
-                             target_type: Union[ObjectType, int] = 5,
-                             target_region: Union[ContentRegion, int] = 1) -> list[Category]:
+                             target_type: Union[EObjectType, int] = 5,
+                             target_region: Union[EContentRegion, int] = 1) -> list[Category]:
         """
         Get available categories
         :param target_type: ObjectType enum field (ObjectType.CIRCLE, ObjectType.CHAT, etc.) or type identifier (default: circle)
@@ -839,7 +841,7 @@ class Client(RequestManager):
         ]
 
     async def get_circles(self,
-                          filter_type: Union[CircleFilterType, str],
+                          filter_type: Union[ECircleFilterType, str],
                           size: int = 30,
                           category_id: int = 0,
                           page_token: Optional[str] = None) -> PaginatedList[Circle]:
@@ -852,11 +854,11 @@ class Client(RequestManager):
         :return: PaginatedList[model.Circle]
         """
         resp = await self.get("/v1/circles", {
-            "type": filter_type.value if isinstance(filter_type, CircleFilterType) else filter_type,
+            "type": filter_type.value if isinstance(filter_type, ECircleFilterType) else filter_type,
             "size": size,
             "categoryId": category_id
         } if page_token is None else {
-            "type": filter_type.value if isinstance(filter_type, CircleFilterType) else filter_type,
+            "type": filter_type.value if isinstance(filter_type, ECircleFilterType) else filter_type,
             "size": size,
             "categoryId": category_id,
             "pageToken": page_token
@@ -944,7 +946,7 @@ class Client(RequestManager):
         await self.delete(f"/v1/comments/{comment_id}")
 
     async def get_comments(self,
-                           parent_type: Union[ObjectType, int],
+                           parent_type: Union[EObjectType, int],
                            parent_id: int,
                            size: int = 30,
                            reply_id: int = 0,
@@ -981,7 +983,7 @@ class Client(RequestManager):
         )
 
     async def comment(self,
-                      parent_type: Union[ObjectType, int],
+                      parent_type: Union[EObjectType, int],
                       parent_id: int,
                       content: Optional[str] = None,
                       media_list: Optional[list[Media]] = None,
@@ -1028,7 +1030,7 @@ class Client(RequestManager):
         """
         await self.post_empty(f"/biz/v1/gift-boxes/{gift_id}/claim")
 
-    async def complete_user_task(self, task_type: Union[UserTaskType, int]):
+    async def complete_user_task(self, task_type: Union[EUserTaskType, int]):
         """
         Mark user task as completed and get coins
         :param task_type: UserTaskType enum field or custom int value
@@ -1036,7 +1038,7 @@ class Client(RequestManager):
         """
         await self.get_user_tasks()
         resp = await self.post_json("/v1/user-tasks/claim-reward", {
-            "type": task_type.value if isinstance(task_type, UserTaskType) else task_type
+            "type": task_type.value if isinstance(task_type, EUserTaskType) else task_type
         })
         await self.accept_gift(resp["giftBox"]["boxId"])
 
@@ -1046,7 +1048,7 @@ class Client(RequestManager):
         count: int,
         payment_password: str,
         title: str,
-        sending_currency_type: CurrencyType
+        sending_currency_type: ECurrencyType
     ) -> GiftBox:
         """
         Send gift to user
@@ -1059,7 +1061,7 @@ class Client(RequestManager):
         """
         resp = await self.post_json("/biz/v1/gift-boxes", {
             "toObjectId": user_id,
-            "toObjectType": ObjectType.USER.value,
+            "toObjectType": EObjectType.USER.value,
             "amount": str(count) + ("0" * 18),
             "paymentPassword": payment_password,
             "currencyType": sending_currency_type.value,
@@ -1098,7 +1100,7 @@ class Client(RequestManager):
             "paymentPassword": payment_password,
             "securityCode": security_code,
             "identity": self.account.email or self.account.phone_number,
-            "authType": AuthType.EMAIL.value if self.account.email is not None else AuthType.PHONE_NUMBER.value,
+            "authType": EAuthType.EMAIL.value if self.account.email is not None else EAuthType.PHONE_NUMBER.value,
             "recoveryPhrasePublicKey": key
         })
         return mnemonic
@@ -1148,7 +1150,7 @@ class Client(RequestManager):
     async def get_blocked_items(
         self,
         reference: CircleReference,
-        items_type: Union[ObjectType, int],
+        items_type: Union[EObjectType, int],
         size: int = 30,
         page_token: Optional[str] = None
     ) -> PaginatedList[BlockedItemWrapper]:
@@ -1161,10 +1163,10 @@ class Client(RequestManager):
         :return: PaginatedList[BlockedItemWrapper]
         """
         resp = await self.get(f"/v1/circles/{await self._resolve_circle_reference(reference)}/blocked-items", {
-            "objectType": items_type.value if isinstance(items_type, ObjectType) else items_type,
+            "objectType": items_type.value if isinstance(items_type, EObjectType) else items_type,
             "size": size
         } if page_token is None else {
-            "objectType": items_type.value if isinstance(items_type, ObjectType) else items_type,
+            "objectType": items_type.value if isinstance(items_type, EObjectType) else items_type,
             "size": size,
             "page_token": page_token
         })
@@ -1186,7 +1188,7 @@ class Client(RequestManager):
         :param page_token: stored in PaginatedList.next_page_token
         :return: PaginatedList[Blog]
         """
-        wrappers = await self.get_blocked_items(reference, ObjectType.BLOG, size, page_token)
+        wrappers = await self.get_blocked_items(reference, EObjectType.BLOG, size, page_token)
         return PaginatedList(
             list(map(
                 lambda x: x.blog,
@@ -1208,7 +1210,7 @@ class Client(RequestManager):
         :param page_token: stored in PaginatedList.next_page_token
         :return: PaginatedList[Chat]
         """
-        wrappers = await self.get_blocked_items(reference, ObjectType.CHAT, size, page_token)
+        wrappers = await self.get_blocked_items(reference, EObjectType.CHAT, size, page_token)
         return PaginatedList(
             list(map(
                 lambda x: x.chat,
@@ -1217,7 +1219,7 @@ class Client(RequestManager):
             next_page_token=wrappers.next_page_token
         )
 
-    async def block_item(self, reference: CircleReference, item_id: int, item_type: Union[ObjectType, int]) -> None:
+    async def block_item(self, reference: CircleReference, item_id: int, item_type: Union[EObjectType, int]) -> None:
         """
         Block item in the selected circle
         :param reference: circle id | circle link | z id
@@ -1227,7 +1229,7 @@ class Client(RequestManager):
         """
         await self.post_json(f"/v1/circles/{await self._resolve_circle_reference(reference)}/blocked-items", {
             "objectId": item_id,
-            "objectType": item_type.value if isinstance(item_type, ObjectType) else item_type
+            "objectType": item_type.value if isinstance(item_type, EObjectType) else item_type
         })
 
     async def unblock_item(self, reference: CircleReference, item_id: int) -> None:
@@ -1377,7 +1379,7 @@ class Client(RequestManager):
 
     async def upload_file(self,
                           file: Union[bytes, AsyncBufferedReader],
-                          target: Union[UploadTarget, int],
+                          target: Union[EUploadTarget, int],
                           duration: int = 0,
                           *,
                           raw_output: bool = False) -> Union[dict, Media]:

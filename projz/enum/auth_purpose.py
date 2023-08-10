@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class AuthPurpose(Enum):
+class EAuthPurpose(Enum):
     RENEW_SID = 0
     LOGIN = 1
     CHANGE_EMAIL = 3

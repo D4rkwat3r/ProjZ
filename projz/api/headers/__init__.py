@@ -1,2 +1,2 @@
-from .abc_headers_provider import ABCHeadersProvider
+from .base_headers_provider import IHeadersProvider
 from .headers_provider import HeadersProvider

@@ -37,7 +37,7 @@ def main():
 
     setup(
         name="ProjZ.py",
-        version="2.4.6",
+        version="2.4.7",
         author="D4rkwat3r",
         description="An asynchronous library for creating scripts and chatbots in Project Z.",
         url="https://github.com/D4rkwat3r/ProjZ",
@@ -47,7 +47,6 @@ def main():
         long_description=get_readme(),
         long_description_content_type="text/markdown",
         python_requires=">=3.7",
-        package_data={"projz": ["api/secret/data.txt"]},
         keywords=[
             "project-z", "projectz", "projz",
             "bots", "api", "supersymlab",

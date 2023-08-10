@@ -1,6 +1,6 @@
 from enum import Enum
 
 
-class CommentType(Enum):
+class ECommentType(Enum):
     TEXT = 1
     MEDIA = 2

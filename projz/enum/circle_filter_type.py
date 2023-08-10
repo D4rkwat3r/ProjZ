@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class CircleFilterType(Enum):
+class ECircleFilterType(Enum):
     JOINED = "joined"
     LATEST = "latest"
     RECOMMEND = "recommend"

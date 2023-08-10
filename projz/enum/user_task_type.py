@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class UserTaskType(Enum):
+class EUserTaskType(Enum):
     ACTIVATE_WALLET = 1
     BUY_MERCH = 2
     ENHANCE_PROFILE = 3

@@ -1,6 +1,6 @@
 from ..api import RequestManager
 from ..error import ApiException
-from ..enum import WSEventType
+from ..enum import EWebSocketEventType
 from ..util import SubscriptionHandler
 from ..model import ChatMessage
 from aiohttp import ClientSession
@@ -37,7 +37,7 @@ class WebsocketListener(SubscriptionHandler):
 
     def _log(self, log_type: str, message_type: int, content_length: int):
         log_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[WS {log_time}] [{log_type}] [{message_type}] [{content_length} bytes]")
+        print(f"[WebSocket {log_time}] [{log_type}] [{message_type}] [{content_length} bytes]")
 
     async def connect(self):
         self.client_session = ClientSession(base_url="wss://ws.projz.com")
@@ -63,9 +63,9 @@ class WebsocketListener(SubscriptionHandler):
             msg_json = loads(msg.data)
             if self.logging:
                 self._log("INCOMING", msg_json["t"], len(msg.data))
-            if msg_json["t"] == WSEventType.MESSAGE.value:
+            if msg_json["t"] == EWebSocketEventType.MESSAGE.value:
                 self.broadcast(ChatMessage.from_dict(msg_json["msg"]))
-            elif msg_json["t"] == WSEventType.ACK.value:
+            elif msg_json["t"] == EWebSocketEventType.ACK.value:
                 ack = msg_json["serverAck"]
                 if ack["seqId"] not in self.outgoing: continue
                 if ack["apiCode"] != 0:

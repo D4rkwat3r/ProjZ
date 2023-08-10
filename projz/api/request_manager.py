@@ -1,4 +1,4 @@
-from .headers import ABCHeadersProvider
+from .headers import IHeadersProvider
 from .util import CopyToBufferWriter
 from ..error import ApiException
 from ..error import BadResponse
@@ -14,15 +14,12 @@ from ujson import JSONDecodeError
 from dataclasses_json import DataClassJsonMixin
 from urllib.parse import urlencode
 from datetime import datetime
-from random import randint
-from struct import pack
-from socket import inet_ntoa
 
 
 class RequestManager:
     def __init__(
         self,
-        provider: ABCHeadersProvider,
+        provider: IHeadersProvider,
         language: str = "en-US",
         country_code: str = "us",
         time_zone: int = 180,
@@ -47,7 +44,6 @@ class RequestManager:
             self.time_zone
         ))
         headers.update(extra or {})
-        headers["X-Forwarded-For"] = inet_ntoa(pack(">I", randint(1, 0xffffffff)))
         headers["HJTRFS"] = await self.provider.generate_request_signature(endpoint, headers, body or bytes())
         return headers
 
