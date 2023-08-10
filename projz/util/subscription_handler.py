@@ -1,8 +1,8 @@
 from typing import Callable
 from typing import Any
-from uuid import uuid4
 from inspect import iscoroutinefunction
 from asyncio import create_task
+from random import randint
 
 
 class SubscriptionHandler:
@@ -15,7 +15,7 @@ class SubscriptionHandler:
         content_filter: Callable[[Any], bool] = lambda _: True,
         content_transform: Callable[[Any], Any] = lambda x: x
     ) -> str:
-        subscription_id = str(uuid4())
+        subscription_id = str(randint(1, 1000000))
         self._subscriptions.append({
             "id": subscription_id,
             "handler": handler,
