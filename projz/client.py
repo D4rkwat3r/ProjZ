@@ -14,6 +14,8 @@ from random import randint
 from sys import maxsize
 from urllib.parse import urlparse
 from magic import from_buffer
+from mnemonic import Mnemonic
+from bip32utils import BIP32Key
 
 CircleReference = Union[Circle, str, int]
 
@@ -1095,15 +1097,17 @@ class Client(RequestManager):
         :return: recovery phrase
         """
         await self.get_wallet_info()
-        mnemonic, key = await RPC.generate_wallet_recovery_data(128, "english")
+        
+        mnemonic = Mnemonic(language="english")
+        recovery_phrase = mnemonic.generate(strength=128)
         await self.post_json("/biz/v1/wallet/0/activate", {
             "paymentPassword": payment_password,
             "securityCode": security_code,
             "identity": self.account.email or self.account.phone_number,
             "authType": EAuthType.EMAIL.value if self.account.email is not None else EAuthType.PHONE_NUMBER.value,
-            "recoveryPhrasePublicKey": key
+            "recoveryPhrasePublicKey": BIP32Key.fromEntropy(mnemonic.to_seed(recovery_phrase)).PublicKey().hex()
         })
-        return mnemonic
+        return recovery_phrase
 
     async def get_wallet_info(self) -> Optional[Wallet]:
         """
