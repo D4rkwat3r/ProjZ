@@ -6,3 +6,5 @@ dataclasses
 dataclasses-json
 python-dateutil
 dill
+mnemonic
+bip32utils
