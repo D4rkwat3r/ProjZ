@@ -147,7 +147,18 @@ class Client(RequestManager):
         :param purpose: AuthPurpose.LOGIN, AuthPurpose.CHANGE_PHONE, custom value...
         :return:
         """
-        return await self._request_security_validation(phone_number=phone_number, purpose=purpose, email=None)
+        return await self._request_security_validation(phone_number=phone_number, purpose=purpose, email=None
+
+
+
+    # FORK INVITE HOST CHAT
+    async def invite_host_chat(self, chat_id, user_id):
+        """
+        Send host a user
+        param: chat_id Chat Id
+        param: user_id Id from user
+        """
+        return await self.post_empty(f'/v1/chat/threads/{chat_id}/invite-host/{user_id}')
 
     async def change_password(self, old: str, new: str) -> None:
         """
