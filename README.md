@@ -1,5 +1,5 @@
-# ProjZ
-A simple asynchronous library for interaction with Project Z
+# Clover Space / Project Z
+A simple asynchronous library for interaction with Clover Space (Project Z)
 
 ### ❗ Outdated. I am not responsible for the functionality of the library at the moment. If the API hasn't changed much after the rebranding, this should work. 
 
